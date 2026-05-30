@@ -59,7 +59,17 @@ def process_item(item, cfg):
                 time.sleep(backoff * attempt)
             else:
                 logger.exception('All attempts failed for %s', src)
-                return False
+                # Try Pillow fallback if ImageMagick failed or not present
+                try:
+                    from PIL import Image
+                    im = Image.open(src)
+                    im = im.convert('RGB')
+                    im.save(out, quality=cfg.get('image_quality', 85))
+                    logger.info('Pillow fallback converted %s -> %s', src, out)
+                    return True
+                except Exception as e2:
+                    logger.exception('Pillow fallback failed for %s: %s', src, e2)
+                    return False
 
 
 def run_worker(poll_interval=1):
