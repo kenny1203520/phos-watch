@@ -44,6 +44,30 @@ async def get_queue():
     return JSONResponse({'count': len(items), 'items': items})
 
 
+@app.post('/queue/remove')
+async def post_queue_remove(req: Request):
+    try:
+        data = await req.json()
+        item_id = data.get('id')
+        ok = q.remove(item_id)
+        return JSONResponse({'ok': ok})
+    except Exception as e:
+        logger.exception('Failed to remove queue item')
+        return JSONResponse({'ok': False, 'error': str(e)}, status_code=500)
+
+
+@app.post('/queue/requeue')
+async def post_queue_requeue(req: Request):
+    try:
+        data = await req.json()
+        item_id = data.get('id')
+        ok = q.requeue(item_id)
+        return JSONResponse({'ok': ok})
+    except Exception as e:
+        logger.exception('Failed to requeue item')
+        return JSONResponse({'ok': False, 'error': str(e)}, status_code=500)
+
+
 @app.get('/control')
 async def get_control():
     return JSONResponse(control.get_state())
@@ -122,7 +146,7 @@ async def index():
 
             <div class="card">
                 <h3>Queue Items</h3>
-                <pre id="queueItems">Loading...</pre>
+                <div id="queueItems">Loading...</div>
             </div>
 
             <div class="card">
@@ -189,9 +213,58 @@ async def index():
                 try {
                     const res = await fetch('/queue');
                     const j = await res.json();
-                    document.getElementById('queueItems').textContent = pretty(j);
                     document.getElementById('qlen').innerText = j.count;
+                    const container = document.getElementById('queueItems');
+                    container.innerHTML = '';
+                    if (!j.items || j.items.length===0) {
+                        container.textContent = 'Queue empty';
+                        return;
+                    }
+                    j.items.forEach(item => {
+                        const el = document.createElement('div');
+                        el.style.padding = '6px 0';
+                        el.style.borderBottom = '1px solid #eef2ff';
+                        const path = document.createElement('div');
+                        path.textContent = item.path || item['path'] || JSON.stringify(item);
+                        path.style.fontFamily = 'monospace';
+                        const meta = document.createElement('div');
+                        meta.className = 'muted';
+                        meta.textContent = 'id: ' + (item.id || item['id'] || '') ;
+                        const btnRow = document.createElement('div');
+                        btnRow.className = 'row';
+                        const retryBtn = document.createElement('button');
+                        retryBtn.textContent = 'Requeue';
+                        retryBtn.onclick = () => { requeueItem(item.id || item['id']); };
+                        const removeBtn = document.createElement('button');
+                        removeBtn.textContent = 'Remove';
+                        removeBtn.className = 'secondary';
+                        removeBtn.onclick = () => { removeItem(item.id || item['id']); };
+                        btnRow.appendChild(retryBtn);
+                        btnRow.appendChild(removeBtn);
+                        el.appendChild(path);
+                        el.appendChild(meta);
+                        el.appendChild(btnRow);
+                        container.appendChild(el);
+                    });
                 } catch (e) { console.error(e); }
+            }
+
+            async function removeItem(id) {
+                try {
+                    const res = await fetch('/queue/remove', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id})});
+                    const j = await res.json();
+                    if (!j.ok) alert('Remove failed');
+                    refreshQueue();
+                } catch(e){ console.error(e); }
+            }
+
+            async function requeueItem(id) {
+                try {
+                    const res = await fetch('/queue/requeue', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id})});
+                    const j = await res.json();
+                    if (!j.ok) alert('Requeue failed');
+                    refreshQueue();
+                } catch(e){ console.error(e); }
             }
 
             async function togglePause() {
