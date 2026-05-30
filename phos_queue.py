@@ -72,3 +72,42 @@ def qlen():
             return len(f.readlines())
     except Exception:
         return 0
+
+
+def list_items():
+    """
+    Return queued items without removing them.
+    Uses Redis when available, otherwise falls back to queue.log.
+    Items are returned in FIFO order (oldest first).
+    """
+    items = []
+    if r:
+        try:
+            raw_items = r.lrange('phos:queue', 0, -1)
+            for raw in raw_items:
+                try:
+                    if isinstance(raw, bytes):
+                        raw = raw.decode('utf-8')
+                    items.append(json.loads(raw))
+                except Exception:
+                    logger.warning('Skipping malformed Redis queue item')
+            items.reverse()
+            return items
+        except Exception as e:
+            logger.debug('Redis list_items failed: %s', e)
+
+    try:
+        with open('queue.log', 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    items.append(json.loads(line))
+                except Exception:
+                    logger.warning('Skipping malformed queue.log line')
+    except FileNotFoundError:
+        return []
+    except Exception as e:
+        logger.debug('Failed to read queue.log: %s', e)
+    return items

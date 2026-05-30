@@ -1,8 +1,26 @@
 # phos-watch configuration
 watch_paths:
   - ./watched
+recursive: true
 target_format: jpg
 delete_original: false
 redis_url: redis://redis:6379/0
 image_quality: 85
 rules_file: rules.yaml
+source_extensions:
+  - jpg
+  - jpeg
+  - png
+  - webp
+extension_aliases:
+  jpg:
+    - jpg
+    - jpeg
+    - JPG
+    - JPEG
+  png:
+    - png
+    - PNG
+  webp:
+    - webp
+    - WEBP

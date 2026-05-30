@@ -4,6 +4,7 @@ import logging
 import subprocess
 import shutil
 import phos_queue as q
+import control
 import rules
 import yaml
 
@@ -27,10 +28,43 @@ def _find_imagemagick_command():
     return None
 
 
+def _normalize_ext(value: str) -> str:
+    return str(value or '').strip().lower().lstrip('.')
+
+
+def _source_extension_allowed(path: str, cfg) -> bool:
+    allowed = cfg.get('source_extensions')
+    aliases = cfg.get('extension_aliases', {}) or {}
+
+    ext = _normalize_ext(os.path.splitext(path)[1])
+    if not ext:
+        return False
+
+    normalized_allowed = set()
+    if isinstance(allowed, list):
+        normalized_allowed.update(_normalize_ext(item) for item in allowed)
+    elif isinstance(allowed, str):
+        normalized_allowed.update(_normalize_ext(item) for item in allowed.split(','))
+
+    for canonical, alias_list in aliases.items():
+        normalized_allowed.add(_normalize_ext(canonical))
+        if isinstance(alias_list, list):
+            normalized_allowed.update(_normalize_ext(item) for item in alias_list)
+
+    if not normalized_allowed:
+        return True
+
+    return ext in normalized_allowed
+
+
 def process_item(item, cfg):
     src = item.get('path')
     if not src:
         logger.warning('Empty item received: %s', item)
+        return False
+
+    if not _source_extension_allowed(src, cfg):
+        logger.info('Skipping unsupported source extension: %s', src)
         return False
 
     target_format = cfg.get('target_format', 'jpg')
@@ -88,6 +122,10 @@ def run_worker(poll_interval=1):
         logging.getLogger().addHandler(fh)
     while True:
         cfg = load_config()
+        if control.is_paused():
+            logger.info('Worker paused; sleeping %s seconds', poll_interval)
+            time.sleep(poll_interval)
+            continue
         item = q.dequeue(timeout=5)
         if item:
             try:
