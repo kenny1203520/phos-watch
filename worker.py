@@ -39,37 +39,40 @@ def process_item(item, cfg):
     os.makedirs(out_dir, exist_ok=True)
 
     cmd_base = _find_imagemagick_command()
-    if not cmd_base:
-        logger.error('ImageMagick not found; cannot convert %s', src)
-        return False
-
-    cmd = [cmd_base, src, out] if cmd_base == 'convert' else [cmd_base, src, out]
+    # If ImageMagick is not available, we'll use Pillow fallback below.
+    if cmd_base:
+        cmd = [cmd_base, src, out] if cmd_base == 'convert' else [cmd_base, src, out]
+    else:
+        cmd = None
 
     max_retries = int(cfg.get('max_retries', 2))
     backoff = float(cfg.get('retry_backoff', 1.0))
 
-    for attempt in range(1, max_retries + 1):
-        try:
-            subprocess.check_call(cmd)
-            logger.info('Converted %s -> %s', src, out)
-            return True
-        except subprocess.CalledProcessError as e:
-            logger.warning('Attempt %d: conversion failed for %s: %s', attempt, src, e)
-            if attempt < max_retries:
-                time.sleep(backoff * attempt)
-            else:
-                logger.exception('All attempts failed for %s', src)
-                # Try Pillow fallback if ImageMagick failed or not present
-                try:
-                    from PIL import Image
-                    im = Image.open(src)
-                    im = im.convert('RGB')
-                    im.save(out, quality=cfg.get('image_quality', 85))
-                    logger.info('Pillow fallback converted %s -> %s', src, out)
-                    return True
-                except Exception as e2:
-                    logger.exception('Pillow fallback failed for %s: %s', src, e2)
-                    return False
+    if cmd is not None:
+        for attempt in range(1, max_retries + 1):
+            try:
+                subprocess.check_call(cmd)
+                logger.info('Converted %s -> %s', src, out)
+                return True
+            except subprocess.CalledProcessError as e:
+                logger.warning('Attempt %d: conversion failed for %s: %s', attempt, src, e)
+                if attempt < max_retries:
+                    time.sleep(backoff * attempt)
+                else:
+                    logger.exception('All attempts failed for %s', src)
+                    break
+
+    # Either ImageMagick not present, or all attempts failed — try Pillow fallback
+    try:
+        from PIL import Image
+        im = Image.open(src)
+        im = im.convert('RGB')
+        im.save(out, quality=cfg.get('image_quality', 85))
+        logger.info('Pillow fallback converted %s -> %s', src, out)
+        return True
+    except Exception as e2:
+        logger.exception('Pillow fallback failed for %s: %s', src, e2)
+        return False
 
 
 def run_worker(poll_interval=1):

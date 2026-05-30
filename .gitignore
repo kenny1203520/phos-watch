@@ -1,0 +1,37 @@
+# Virtual environments
+.venv/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Logs and queue files
+*.log
+queue.log
+.phos_watch.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor configs
+.vscode/
+
+# Test cache
+.pytest_cache/
+
+# Watched directory (user data)
+watched/
+
+# dotenv
+.env
+
+# PyInstaller
+dist/
+build/

@@ -4,14 +4,21 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Allow users to explicitly disable Redis via env var PHOS_USE_REDIS (0/false to disable)
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+_use_redis_env = os.getenv('PHOS_USE_REDIS')
+USE_REDIS = True
+if _use_redis_env is not None and _use_redis_env.lower() in ('0', 'false', 'no'):
+    USE_REDIS = False
 
-
-try:
-    import redis
-    r = redis.from_url(REDIS_URL)
-except Exception:
-    r = None
+r = None
+if USE_REDIS and REDIS_URL:
+    try:
+        import redis
+        r = redis.from_url(REDIS_URL)
+    except Exception as e:
+        logger.debug('Redis not available or failed to connect: %s', e)
+        r = None
 
 
 def enqueue(path: str):
