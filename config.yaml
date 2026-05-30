@@ -1,0 +1,8 @@
+# phos-watch configuration
+watch_paths:
+  - ./watched
+target_format: jpg
+delete_original: false
+redis_url: redis://redis:6379/0
+image_quality: 85
+rules_file: rules.yaml
