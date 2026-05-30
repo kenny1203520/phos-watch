@@ -25,14 +25,14 @@ async def get_config():
 
 @app.post('/config')
 async def post_config(req: Request):
-    raw_text = await req.body()
     try:
-        cfg = yaml.safe_load(raw_text.decode('utf-8')) if raw_text else {}
-        if cfg is None:
-            cfg = {}
+        data = await req.json()
+        if data is None:
+            data = {}
+        # Persist as YAML for worker consumption
         with open('config.yaml', 'w', encoding='utf-8') as f:
-            yaml.safe_dump(cfg, f, sort_keys=False, allow_unicode=True)
-        return JSONResponse({'ok': True, 'config': cfg})
+            yaml.safe_dump(data, f, sort_keys=False, allow_unicode=True)
+        return JSONResponse({'ok': True, 'config': data})
     except Exception as e:
         logger.exception('Failed to write config.yaml')
         return JSONResponse({'ok': False, 'error': str(e)}, status_code=500)
@@ -128,11 +128,35 @@ async def index():
             <div class="card">
                 <h3>Configuration</h3>
                 <p class="muted">可調整 watch_paths、recursive、target_format、source_extensions、extension_aliases。</p>
-                <div class="row" style="margin-bottom:8px;">
-                    <button id="loadConfig" class="secondary">Load Config</button>
-                    <button id="saveConfig">Save Config</button>
-                </div>
-                <textarea id="configText"></textarea>
+                <form id="configForm">
+                    <div style="margin-bottom:8px;">
+                        <label>Watch paths (comma-separated):<br/>
+                            <input type="text" id="watch_paths" style="width:100%" />
+                        </label>
+                    </div>
+                    <div style="margin-bottom:8px;">
+                        <label><input type="checkbox" id="recursive" /> Recursive watch</label>
+                    </div>
+                    <div style="margin-bottom:8px;">
+                        <label>Source extensions (comma-separated):<br/>
+                            <input type="text" id="source_extensions" style="width:100%" />
+                        </label>
+                    </div>
+                    <div style="margin-bottom:8px;">
+                        <label>Target format (e.g. jpg):<br/>
+                            <input type="text" id="target_format" style="width:200px" />
+                        </label>
+                    </div>
+                    <div style="margin-bottom:8px;">
+                        <label>Extension aliases (JSON object):<br/>
+                            <textarea id="extension_aliases" style="width:100%; min-height:80px; font-family: Consolas, monospace;"></textarea>
+                        </label>
+                    </div>
+                    <div class="row">
+                        <button type="button" id="loadConfig" class="secondary">Load Config</button>
+                        <button type="button" id="saveConfig">Save Config</button>
+                    </div>
+                </form>
             </div>
 
             <div class="card">
@@ -187,17 +211,38 @@ async def index():
                 try {
                     const res = await fetch('/config');
                     const j = await res.json();
-                    document.getElementById('configText').value = pretty(j);
+                    // populate form fields
+                    document.getElementById('watch_paths').value = (j.watch_paths || []).join(', ');
+                    document.getElementById('recursive').checked = !!(j && j.recursive);
+                    document.getElementById('source_extensions').value = (j.source_extensions || []).join(', ');
+                    document.getElementById('target_format').value = j.target_format || '';
+                    document.getElementById('extension_aliases').value = JSON.stringify(j.extension_aliases || {}, null, 2);
                 } catch (e) { console.error(e); }
+            }
+
+            function parseCSVToList(s) {
+                if (!s) return [];
+                return s.split(',').map(x => x.trim()).filter(x => x.length>0);
             }
 
             async function saveConfig() {
                 try {
-                    const text = document.getElementById('configText').value;
+                    const cfg = {};
+                    cfg.watch_paths = parseCSVToList(document.getElementById('watch_paths').value);
+                    cfg.recursive = document.getElementById('recursive').checked;
+                    cfg.source_extensions = parseCSVToList(document.getElementById('source_extensions').value).map(e => e.replace(/^\./, '').toLowerCase());
+                    cfg.target_format = (document.getElementById('target_format').value || '').trim();
+                    try {
+                        cfg.extension_aliases = JSON.parse(document.getElementById('extension_aliases').value || '{}');
+                    } catch (e) {
+                        alert('extension_aliases must be valid JSON');
+                        return;
+                    }
+
                     const res = await fetch('/config', {
                         method: 'POST',
-                        headers: {'Content-Type': 'text/plain; charset=utf-8'},
-                        body: text
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(cfg)
                     });
                     const j = await res.json();
                     if (!j.ok) {
