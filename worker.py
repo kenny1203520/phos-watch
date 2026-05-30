@@ -19,6 +19,36 @@ def load_config(path='config.yaml'):
         return {}
 
 
+# Cached config + mtime to support hot-reload without restarting the worker
+_cached_cfg = None
+_cached_mtime = None
+
+
+def load_config_if_changed(path='config.yaml'):
+    """Return cached config unless file mtime changed, in which case reload.
+    If the config file does not exist, return empty dict and reset cache.
+    """
+    global _cached_cfg, _cached_mtime
+    try:
+        mtime = os.path.getmtime(path)
+    except Exception:
+        # config missing: clear cache
+        if _cached_cfg is None:
+            _cached_cfg = {}
+        _cached_mtime = None
+        return _cached_cfg or {}
+
+    if _cached_mtime is None or mtime != _cached_mtime:
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                _cached_cfg = yaml.safe_load(f) or {}
+            _cached_mtime = mtime
+            logger.info('Reloaded config from %s', path)
+        except Exception:
+            logger.exception('Failed to reload config; keeping previous config')
+    return _cached_cfg or {}
+
+
 def _find_imagemagick_command():
     from shutil import which
     if which('magick'):
@@ -121,7 +151,7 @@ def run_worker(poll_interval=1):
         fh.setFormatter(fmt)
         logging.getLogger().addHandler(fh)
     while True:
-        cfg = load_config()
+        cfg = load_config_if_changed()
         if control.is_paused():
             logger.info('Worker paused; sleeping %s seconds', poll_interval)
             time.sleep(poll_interval)

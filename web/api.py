@@ -188,6 +188,7 @@ async def index():
                 <pre id="logs"></pre>
             </div>
         </div>
+            <div id="toast" style="position:fixed; right:16px; bottom:16px; z-index:9999;"></div>
         <script>
             function pretty(obj) {
                 try { return JSON.stringify(obj, null, 2); } catch (e) { return String(obj); }
@@ -234,11 +235,11 @@ async def index():
                         btnRow.className = 'row';
                         const retryBtn = document.createElement('button');
                         retryBtn.textContent = 'Requeue';
-                        retryBtn.onclick = () => { requeueItem(item.id || item['id']); };
+                        retryBtn.onclick = () => { requeueItem(item.id || item['id'], retryBtn); };
                         const removeBtn = document.createElement('button');
                         removeBtn.textContent = 'Remove';
                         removeBtn.className = 'secondary';
-                        removeBtn.onclick = () => { removeItem(item.id || item['id']); };
+                        removeBtn.onclick = () => { removeItem(item.id || item['id'], removeBtn); };
                         btnRow.appendChild(retryBtn);
                         btnRow.appendChild(removeBtn);
                         el.appendChild(path);
@@ -249,22 +250,46 @@ async def index():
                 } catch (e) { console.error(e); }
             }
 
-            async function removeItem(id) {
+            async function removeItem(id, btn) {
                 try {
+                    btn.disabled = true;
                     const res = await fetch('/queue/remove', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id})});
                     const j = await res.json();
-                    if (!j.ok) alert('Remove failed');
-                    refreshQueue();
-                } catch(e){ console.error(e); }
+                    if (!j.ok) {
+                        showToast('Remove failed', true);
+                    } else {
+                        showToast('Removed', false);
+                    }
+                    await refreshQueue();
+                } catch(e){ console.error(e); showToast('Remove error', true); }
+                finally { try { btn.disabled = false; } catch(_){} }
             }
 
-            async function requeueItem(id) {
+            async function requeueItem(id, btn) {
                 try {
+                    btn.disabled = true;
                     const res = await fetch('/queue/requeue', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id})});
                     const j = await res.json();
-                    if (!j.ok) alert('Requeue failed');
-                    refreshQueue();
-                } catch(e){ console.error(e); }
+                    if (!j.ok) {
+                        showToast('Requeue failed', true);
+                    } else {
+                        showToast('Requeued', false);
+                    }
+                    await refreshQueue();
+                } catch(e){ console.error(e); showToast('Requeue error', true); }
+                finally { try { btn.disabled = false; } catch(_){} }
+            }
+
+            function showToast(msg, isError) {
+                const t = document.createElement('div');
+                t.textContent = msg;
+                t.style.background = isError ? '#ef4444' : '#10b981';
+                t.style.color = 'white';
+                t.style.padding = '8px 12px';
+                t.style.marginTop = '8px';
+                t.style.borderRadius = '8px';
+                document.getElementById('toast').appendChild(t);
+                setTimeout(() => { t.style.transition = 'opacity 0.4s'; t.style.opacity = '0'; setTimeout(()=>t.remove(),400); }, 3000);
             }
 
             async function togglePause() {
@@ -299,7 +324,11 @@ async def index():
             }
 
             async function saveConfig() {
+                const btn = document.getElementById('saveConfig');
                 try {
+                    btn.disabled = true;
+                    const origText = btn.textContent;
+                    btn.textContent = 'Saving...';
                     const cfg = {};
                     cfg.watch_paths = parseCSVToList(document.getElementById('watch_paths').value);
                     cfg.recursive = document.getElementById('recursive').checked;
@@ -308,7 +337,7 @@ async def index():
                     try {
                         cfg.extension_aliases = JSON.parse(document.getElementById('extension_aliases').value || '{}');
                     } catch (e) {
-                        alert('extension_aliases must be valid JSON');
+                        showToast('extension_aliases must be valid JSON', true);
                         return;
                     }
 
@@ -319,11 +348,12 @@ async def index():
                     });
                     const j = await res.json();
                     if (!j.ok) {
-                        alert('Save failed: ' + (j.error || 'unknown error'));
+                        showToast('Save failed: ' + (j.error || 'unknown error'), true);
                         return;
                     }
-                    alert('Saved');
-                } catch (e) { console.error(e); }
+                    showToast('Saved', false);
+                } catch (e) { console.error(e); showToast('Save error', true); }
+                finally { btn.disabled = false; btn.textContent = 'Save Config'; }
             }
 
             document.getElementById('refreshQueue').addEventListener('click', refreshQueue);
