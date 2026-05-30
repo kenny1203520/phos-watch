@@ -76,7 +76,16 @@ def process_item(item, cfg):
 
 
 def run_worker(poll_interval=1):
+    # configure logging: console + file so web UI can tail the file
     logging.basicConfig(level=logging.INFO)
+    log_file = os.getenv('PHOS_LOG_FILE', 'phos_watch.log')
+    # avoid adding multiple handlers if run multiple times
+    if not any(isinstance(h, logging.FileHandler) and getattr(h, 'baseFilename', None) == os.path.abspath(log_file) for h in logging.getLogger().handlers):
+        fh = logging.FileHandler(log_file, encoding='utf-8')
+        fh.setLevel(logging.INFO)
+        fmt = logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s')
+        fh.setFormatter(fmt)
+        logging.getLogger().addHandler(fh)
     while True:
         cfg = load_config()
         item = q.dequeue(timeout=5)
