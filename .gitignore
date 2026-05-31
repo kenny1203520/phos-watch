@@ -16,6 +16,9 @@ dist/
 queue.log
 .phos_watch.log
 
+# config files
+control.json
+
 # OS files
 .DS_Store
 Thumbs.db
