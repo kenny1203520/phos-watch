@@ -16,7 +16,6 @@ LOGFILE = 'phos_watch.log'
 # serve static files (locales will live under static/locales)
 app.mount('/static', StaticFiles(directory='static'), name='static')
 
-
 @app.get('/status')
 async def status():
     return JSONResponse({'queue_length': q.qlen()})
@@ -87,37 +86,36 @@ async def post_control(req: Request):
 
 @app.websocket('/ws/logs')
 async def websocket_logs(ws: WebSocket):
-        await ws.accept()
+    await ws.accept()
+    try:
         try:
-                try:
-                        with open(LOGFILE, 'r', encoding='utf-8') as f:
-                                lines = f.readlines()[-200:]
-                except FileNotFoundError:
-                        lines = []
+            with open(LOGFILE, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()[-200:]
+        except FileNotFoundError:
+            lines = []
 
-                for line in lines:
-                        await ws.send_text(line.rstrip('\n'))
+        for line in lines:
+            await ws.send_text(line.rstrip('\n'))
 
-                f = open(LOGFILE, 'r', encoding='utf-8')
-                f.seek(0, 2)
-                try:
-                        while True:
-                                where = f.tell()
-                                line = f.readline()
-                                if not line:
-                                        await asyncio.sleep(0.5)
-                                        f.seek(where)
-                                        continue
-                                await ws.send_text(line.rstrip('\n'))
-                finally:
-                        f.close()
-        except WebSocketDisconnect:
-                pass
-
+        f = open(LOGFILE, 'r', encoding='utf-8')
+        f.seek(0, 2)
+        try:
+            while True:
+                where = f.tell()
+                line = f.readline()
+                if not line:
+                    await asyncio.sleep(0.5)
+                    f.seek(where)
+                    continue
+                await ws.send_text(line.rstrip('\n'))
+        finally:
+            f.close()
+    except WebSocketDisconnect:
+        pass
 
 @app.get('/')
 async def index():
-        html = '''
+    html = '''
     <html>
         <head>
             <title data-i18n="title">phos-watch Admin</title>
@@ -431,5 +429,5 @@ async def index():
             </script>
         </body>
     </html>
-        '''
-        return HTMLResponse(html)
+    '''
+    return HTMLResponse(html)
