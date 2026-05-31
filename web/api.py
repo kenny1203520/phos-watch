@@ -129,6 +129,9 @@ async def index():
             button { border: 0; background: #2563eb; color: white; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
             button.secondary { background: #475569; }
             .row { display:flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+            button[disabled] { opacity: 0.6; cursor: not-allowed; }
+            .spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius:50%; animation: spin 1s linear infinite; vertical-align:middle; margin-right:6px; }
+            @keyframes spin { to { transform: rotate(360deg); } }
         </style>
     </head>
     <body>
@@ -251,8 +254,10 @@ async def index():
             }
 
             async function removeItem(id, btn) {
+                const orig = btn.textContent;
                 try {
                     btn.disabled = true;
+                    btn.innerHTML = '<span class="spinner"></span>' + orig;
                     const res = await fetch('/queue/remove', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id})});
                     const j = await res.json();
                     if (!j.ok) {
@@ -262,12 +267,14 @@ async def index():
                     }
                     await refreshQueue();
                 } catch(e){ console.error(e); showToast('Remove error', true); }
-                finally { try { btn.disabled = false; } catch(_){} }
+                finally { try { btn.disabled = false; btn.textContent = orig; } catch(_){} }
             }
 
             async function requeueItem(id, btn) {
+                const orig = btn.textContent;
                 try {
                     btn.disabled = true;
+                    btn.innerHTML = '<span class="spinner"></span>' + orig;
                     const res = await fetch('/queue/requeue', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id})});
                     const j = await res.json();
                     if (!j.ok) {
@@ -277,7 +284,7 @@ async def index():
                     }
                     await refreshQueue();
                 } catch(e){ console.error(e); showToast('Requeue error', true); }
-                finally { try { btn.disabled = false; } catch(_){} }
+                finally { try { btn.disabled = false; btn.textContent = orig; } catch(_){} }
             }
 
             function showToast(msg, isError) {
@@ -325,10 +332,10 @@ async def index():
 
             async function saveConfig() {
                 const btn = document.getElementById('saveConfig');
+                const origText = btn.textContent;
                 try {
                     btn.disabled = true;
-                    const origText = btn.textContent;
-                    btn.textContent = 'Saving...';
+                    btn.innerHTML = '<span class="spinner"></span>' + origText;
                     const cfg = {};
                     cfg.watch_paths = parseCSVToList(document.getElementById('watch_paths').value);
                     cfg.recursive = document.getElementById('recursive').checked;
@@ -353,7 +360,7 @@ async def index():
                     }
                     showToast('Saved', false);
                 } catch (e) { console.error(e); showToast('Save error', true); }
-                finally { btn.disabled = false; btn.textContent = 'Save Config'; }
+                finally { btn.disabled = false; try { btn.textContent = origText; } catch(_){} }
             }
 
             document.getElementById('refreshQueue').addEventListener('click', refreshQueue);

@@ -7,6 +7,7 @@ import phos_queue as q
 import control
 import rules
 import yaml
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,49 @@ def load_config_if_changed(path='config.yaml'):
         except Exception:
             logger.exception('Failed to reload config; keeping previous config')
     return _cached_cfg or {}
+
+
+def start_config_watchdog(path='config.yaml'):
+    """Start a watchdog observer to reload config on change if watchdog is available.
+    This is optional; if watchdog isn't installed, function is a no-op.
+    """
+    try:
+        from watchdog.observers import Observer
+        from watchdog.events import FileSystemEventHandler
+    except Exception:
+        logger.debug('watchdog not available; using mtime polling for config reload')
+        return None
+
+    class _Handler(FileSystemEventHandler):
+        def on_modified(self, event):
+            try:
+                src = os.path.abspath(event.src_path)
+                target = os.path.abspath(path)
+                if src == target:
+                    global _cached_mtime, _cached_cfg
+                    # Force reload on next check by clearing mtime, then attempt immediate reload
+                    _cached_mtime = None
+                    try:
+                        with open(path, 'r', encoding='utf-8') as f:
+                            _cached_cfg = yaml.safe_load(f) or {}
+                        _cached_mtime = os.path.getmtime(path)
+                        logger.info('Config reloaded by watchdog')
+                    except Exception:
+                        logger.exception('watchdog failed to reload config')
+            except Exception:
+                logger.exception('watchdog handler error')
+
+    observer = Observer()
+    watch_dir = os.path.dirname(os.path.abspath(path)) or '.'
+    try:
+        observer.schedule(_Handler(), watch_dir, recursive=False)
+        observer.daemon = True
+        observer.start()
+        logger.info('Started watchdog observer for %s', path)
+        return observer
+    except Exception:
+        logger.exception('Failed to start watchdog observer')
+        return None
 
 
 def _find_imagemagick_command():
@@ -150,6 +194,12 @@ def run_worker(poll_interval=1):
         fmt = logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s')
         fh.setFormatter(fmt)
         logging.getLogger().addHandler(fh)
+    # try to start watchdog (optional)
+    try:
+        _observer = start_config_watchdog()
+    except Exception:
+        _observer = None
+
     while True:
         cfg = load_config_if_changed()
         if control.is_paused():
