@@ -56,6 +56,10 @@ def main():
         "--add-data", add_data_arg,
     ]
     
+    icon_path = os.path.join("static", "favicon.ico")
+    if os.path.exists(icon_path):
+        cmd.extend(["--icon", icon_path])
+        
     for imp in hidden_imports:
         cmd.extend(["--hidden-import", imp])
         
