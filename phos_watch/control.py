@@ -2,7 +2,7 @@ import json
 import logging
 import os
 
-import phos_queue as pq
+from . import phos_queue as pq
 
 logger = logging.getLogger(__name__)
 CONTROL_FILE = 'control.json'

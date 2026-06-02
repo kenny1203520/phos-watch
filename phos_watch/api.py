@@ -6,26 +6,30 @@ import logging
 import yaml
 import os
 
-import phos_queue as q
-import control
-import worker
+from . import phos_queue as q
+from . import control
+from . import worker
 
 app = FastAPI()
 logger = logging.getLogger('phos-watch-web')
-LOGFILE = 'phos_watch.log'
+LOGFILE = os.getenv('PHOS_LOG_FILE', os.path.join('logs', 'phos_watch.log'))
 
 # Check if log file exists, if not create it. Avoid truncating to preserve log history/rotation.
+log_dir = os.path.dirname(LOGFILE)
+if log_dir:
+    os.makedirs(log_dir, exist_ok=True)
 if not os.path.exists(LOGFILE):
     with open(LOGFILE, 'w', encoding='utf-8') as f:
         pass
 
 # serve static files (locales will live under static/locales)
-app.mount('/static', StaticFiles(directory='static'), name='static')
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+app.mount('/static', StaticFiles(directory=os.path.join(BASE_DIR, 'static')), name='static')
 
 @app.on_event("startup")
 def startup_event():
     import threading
-    import watcher
+    from . import watcher
     
     # Start watcher loop thread
     watcher_thread = threading.Thread(target=watcher.start_watcher_loop, daemon=True)

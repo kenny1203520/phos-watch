@@ -4,9 +4,9 @@ import logging
 import subprocess
 import shutil
 from pathlib import Path
-import phos_queue as q
-import control
-import rules
+from . import phos_queue as q
+from . import control
+from . import rules
 import yaml
 import threading
 import hashlib
@@ -24,6 +24,9 @@ class PhosRotatingFileHandler(BaseRotatingHandler):
         self.last_rotation_time = time.time()
         self.last_failed_rotation_time = 0.0
         self.line_count = 0
+        log_dir = os.path.dirname(filename)
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
         if os.path.exists(filename):
             self.last_rotation_time = os.path.getmtime(filename)
             self._recount_lines(filename)
@@ -147,7 +150,10 @@ class PhosRotatingFileHandler(BaseRotatingHandler):
 def setup_phos_logging(cfg=None):
     if cfg is None:
         cfg = load_config()
-    log_file = os.getenv('PHOS_LOG_FILE', 'phos_watch.log')
+    log_file = os.getenv('PHOS_LOG_FILE', os.path.join('logs', 'phos_watch.log'))
+    log_dir = os.path.dirname(log_file)
+    if log_dir:
+        os.makedirs(log_dir, exist_ok=True)
     max_lines = int(cfg.get('log_max_lines', 0))
     max_size_kb = float(cfg.get('log_max_size_kb', 0))
     max_bytes = int(max_size_kb * 1024)

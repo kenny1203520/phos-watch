@@ -1,5 +1,5 @@
 import pytest
-from rules import normalize_output_path
+from phos_watch.rules import normalize_output_path
 
 
 def test_normalize_output_basic():

@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-import worker
+import phos_watch.worker as worker
 
 
 def test_pillow_fallback(tmp_path, monkeypatch):
@@ -60,7 +60,7 @@ def test_process_item_renames_same_format_only(tmp_path, monkeypatch):
 
 
 def test_run_worker_does_not_delete_on_case_normalization(tmp_path, monkeypatch):
-    import worker
+    import phos_watch.worker as worker
     
     src = tmp_path / "photo.JPG"
     src.write_bytes(b"dummy image data")
@@ -91,7 +91,7 @@ def test_run_worker_does_not_delete_on_case_normalization(tmp_path, monkeypatch)
 
 
 def test_run_worker_deletes_original_on_different_format(tmp_path, monkeypatch):
-    import worker
+    import phos_watch.worker as worker
     src = tmp_path / "photo.png"
     
     from PIL import Image

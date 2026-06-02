@@ -2,8 +2,8 @@ import argparse
 import logging
 import uvicorn
 
-from watcher import start_watcher
-from worker import run_worker
+from phos_watch.watcher import start_watcher
+from phos_watch.worker import run_worker
 
 def main():
     parser = argparse.ArgumentParser(description='phos-watch entrypoint')
@@ -32,7 +32,7 @@ def main():
         run_worker()
     else:
         # run FastAPI app
-        uvicorn.run('web.api:app', host='0.0.0.0', port=8000, reload=False)
+        uvicorn.run('phos_watch.api:app', host='0.0.0.0', port=8000, reload=False)
 
 
 if __name__ == '__main__':

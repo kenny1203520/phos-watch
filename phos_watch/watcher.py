@@ -6,14 +6,14 @@ from pathlib import Path
 import os
 import yaml
 
-import phos_queue as q
+from . import phos_queue as q
 
 logger = logging.getLogger(__name__)
 
 
 def needs_processing(filepath: str, cfg: dict) -> bool:
-    import worker
-    import rules
+    from . import worker
+    from . import rules
     
     path_obj = Path(filepath)
     if path_obj.is_dir():
@@ -39,7 +39,7 @@ class _Handler(FileSystemEventHandler):
             return
         path = Path(event.src_path)
         
-        import worker
+        from . import worker
         cfg = worker.load_config()
         if not needs_processing(str(path), cfg):
             return
@@ -52,7 +52,7 @@ class _Handler(FileSystemEventHandler):
             return
         path = Path(event.dest_path)
         
-        import worker
+        from . import worker
         cfg = worker.load_config()
         if not needs_processing(str(path), cfg):
             return
@@ -101,7 +101,7 @@ def start_watcher(paths):
 
 
 def start_watcher_loop(config_path='config.yaml'):
-    import control
+    from . import control
     observer = None
     last_paths = None
     last_mtime = None

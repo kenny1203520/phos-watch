@@ -12,6 +12,8 @@ USE_REDIS = False if REDIS_URL is None else True
 if _use_redis_env is not None and _use_redis_env.lower() in ('0', 'false', 'no'):
     USE_REDIS = False
 
+QFILE = os.getenv('PHOS_QUEUE_LOG', os.path.join('logs', 'queue.log'))
+
 r = None
 if USE_REDIS and REDIS_URL:
     try:
@@ -20,6 +22,12 @@ if USE_REDIS and REDIS_URL:
     except Exception as e:
         logger.debug('Redis not available or failed to connect: %s', e)
         r = None
+
+
+def _ensure_qfile_dir():
+    qdir = os.path.dirname(QFILE)
+    if qdir:
+        os.makedirs(qdir, exist_ok=True)
 
 
 def enqueue(path: str):
@@ -32,8 +40,8 @@ def enqueue(path: str):
         except Exception as e:
             logger.warning('Redis enqueue failed, falling back: %s', e)
     # fallback: write to local file
-    qfile = 'queue.log'
-    with open(qfile, 'a', encoding='utf-8') as f:
+    _ensure_qfile_dir()
+    with open(QFILE, 'a', encoding='utf-8') as f:
         f.write(item + '\n')
 
 
@@ -50,15 +58,15 @@ def dequeue(timeout=0):
         except Exception as e:
             logger.warning('Redis dequeue failed: %s', e)
     # fallback: read file
-    qfile = 'queue.log'
     try:
-        with open(qfile, 'r', encoding='utf-8') as f:
+        with open(QFILE, 'r', encoding='utf-8') as f:
             lines = f.readlines()
         if not lines:
             return None
         first = lines[0].strip()
         remaining = lines[1:]
-        with open(qfile, 'w', encoding='utf-8') as f:
+        _ensure_qfile_dir()
+        with open(QFILE, 'w', encoding='utf-8') as f:
             f.writelines(remaining)
         return json.loads(first)
     except FileNotFoundError:
@@ -72,7 +80,7 @@ def qlen():
         except Exception:
             return 0
     try:
-        with open('queue.log', 'r', encoding='utf-8') as f:
+        with open(QFILE, 'r', encoding='utf-8') as f:
             return len(f.readlines())
     except Exception:
         return 0
@@ -101,7 +109,7 @@ def list_items():
             logger.debug('Redis list_items failed: %s', e)
 
     try:
-        with open('queue.log', 'r', encoding='utf-8') as f:
+        with open(QFILE, 'r', encoding='utf-8') as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -130,7 +138,7 @@ def peek():
         except Exception as e:
             logger.debug('Redis peek failed: %s', e)
     try:
-        with open('queue.log', 'r', encoding='utf-8') as f:
+        with open(QFILE, 'r', encoding='utf-8') as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -172,11 +180,10 @@ def remove(item_id: str):
         except Exception as e:
             logger.debug('Redis remove failed: %s', e)
     # file fallback
-    qfile = 'queue.log'
     try:
         changed = False
         out_lines = []
-        with open(qfile, 'r', encoding='utf-8') as f:
+        with open(QFILE, 'r', encoding='utf-8') as f:
             for line in f:
                 line_strip = line.strip()
                 if not line_strip:
@@ -190,7 +197,8 @@ def remove(item_id: str):
                     pass
                 out_lines.append(line)
         if changed:
-            with open(qfile, 'w', encoding='utf-8') as f:
+            _ensure_qfile_dir()
+            with open(QFILE, 'w', encoding='utf-8') as f:
                 f.writelines(out_lines)
         return changed
     except FileNotFoundError:
@@ -232,11 +240,10 @@ def requeue(item_id: str):
         except Exception as e:
             logger.debug('Redis requeue failed: %s', e)
     # file fallback
-    qfile = 'queue.log'
     try:
         lines = []
         found = None
-        with open(qfile, 'r', encoding='utf-8') as f:
+        with open(QFILE, 'r', encoding='utf-8') as f:
             for line in f:
                 line_strip = line.strip()
                 if not line_strip:
@@ -252,7 +259,8 @@ def requeue(item_id: str):
         if found is None:
             return False
         # write: found as first line (oldest), then remaining
-        with open(qfile, 'w', encoding='utf-8') as f:
+        _ensure_qfile_dir()
+        with open(QFILE, 'w', encoding='utf-8') as f:
             f.write(found + '\n')
             f.writelines(lines)
         return True
