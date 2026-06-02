@@ -34,10 +34,107 @@ async def post_config(req: Request):
         data = await req.json()
         if data is None:
             data = {}
+
+        # Validate and migrate incoming config to canonical shape
+        def normalize_suffix(s):
+            try:
+                return str(s or '').strip().lstrip('.')
+            except Exception:
+                return ''
+
+        def validate_and_migrate(cfg):
+            if not isinstance(cfg, dict):
+                return False, 'config must be an object'
+
+            migrated = dict(cfg)  # shallow copy
+
+            # watch_paths: allow legacy list of strings -> convert to list of objects
+            wp = migrated.get('watch_paths', []) or []
+            if isinstance(wp, list) and wp and all(isinstance(x, str) for x in wp):
+                # legacy: single global recursive flag may exist
+                global_recursive = bool(migrated.get('recursive', False))
+                migrated['watch_paths'] = [{'path': p, 'recursive': global_recursive} for p in wp]
+            else:
+                # ensure list of objects with path and recursive
+                new_wp = []
+                if isinstance(wp, list):
+                    for item in wp:
+                        if isinstance(item, str):
+                            new_wp.append({'path': item, 'recursive': False})
+                        elif isinstance(item, dict):
+                            path = item.get('path') or item.get('watch_path') or ''
+                            new_wp.append({'path': path, 'recursive': bool(item.get('recursive', False))})
+                migrated['watch_paths'] = new_wp
+
+            # source_extensions: normalize to list of lowercase suffixes
+            se = migrated.get('source_extensions')
+            if se is None:
+                migrated['source_extensions'] = []
+            elif isinstance(se, str):
+                migrated['source_extensions'] = [x.strip().lower().lstrip('.') for x in se.split(',') if x.strip()]
+            elif isinstance(se, list):
+                migrated['source_extensions'] = [str(x).strip().lower().lstrip('.') for x in se if str(x).strip()]
+            else:
+                migrated['source_extensions'] = []
+
+            # target_format: normalize
+            tf = migrated.get('target_format')
+            migrated['target_format'] = normalize_suffix(tf) or ''
+
+            # delete_original flag: normalize to bool
+            migrated['delete_original'] = bool(migrated.get('delete_original', False))
+
+            # conversion_schemes: if absent but we have target_format or source_extensions, create a default scheme
+            cs = migrated.get('conversion_schemes')
+            if not cs:
+                if migrated.get('target_format'):
+                    migrated['conversion_schemes'] = [{
+                        'name': 'default',
+                        'source_extensions': migrated.get('source_extensions', []),
+                        'target_format': migrated.get('target_format', ''),
+                        'delete_original': migrated.get('delete_original', False),
+                        'enabled': True
+                    }]
+                else:
+                    migrated['conversion_schemes'] = []
+            else:
+                # normalize each scheme
+                normalized_schemes = []
+                if isinstance(cs, list):
+                    for sc in cs:
+                        if not isinstance(sc, dict):
+                            continue
+                        normalized_schemes.append({
+                            'name': sc.get('name') or sc.get('id') or '',
+                            'source_extensions': [str(x).strip().lower().lstrip('.') for x in (sc.get('source_extensions') or []) if str(x).strip()],
+                            'target_format': normalize_suffix(sc.get('target_format') or sc.get('target') or ''),
+                            'delete_original': bool(sc.get('delete_original', sc.get('remove_original', False))),
+                            'enabled': bool(sc.get('enabled', True))
+                        })
+                migrated['conversion_schemes'] = normalized_schemes
+
+            # extension_aliases: try to accept either dict or JSON string
+            ea = migrated.get('extension_aliases')
+            if isinstance(ea, str):
+                try:
+                    migrated['extension_aliases'] = yaml.safe_load(ea) or {}
+                except Exception:
+                    migrated['extension_aliases'] = {}
+            elif isinstance(ea, dict):
+                migrated['extension_aliases'] = ea
+            else:
+                migrated['extension_aliases'] = {}
+
+            return True, migrated
+
+        ok, result = validate_and_migrate(data)
+        if not ok:
+            return JSONResponse({'ok': False, 'error': result}, status_code=400)
+
         # Persist as YAML for worker consumption
         with open('config.yaml', 'w', encoding='utf-8') as f:
-            yaml.safe_dump(data, f, sort_keys=False, allow_unicode=True)
-        return JSONResponse({'ok': True, 'config': data})
+            yaml.safe_dump(result, f, sort_keys=False, allow_unicode=True)
+        return JSONResponse({'ok': True, 'config': result})
     except Exception as e:
         logger.exception('Failed to write config.yaml')
         return JSONResponse({'ok': False, 'error': str(e)}, status_code=500)
@@ -133,6 +230,13 @@ async def index():
                 .field-help { color: #64748b; font-size: 13px; }
                 .list-items { display: flex; flex-wrap: wrap; gap: 8px; min-height: 44px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 10px; background: #f8fafc; }
                 .list-empty { color: #94a3b8; align-self: center; }
+                .module { border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; background: #f8fafc; margin-bottom: 12px; }
+                .module h4 { margin: 0 0 8px 0; }
+                .item-list { display: grid; gap: 8px; }
+                .item-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px; border: 1px solid #dbeafe; border-radius: 8px; background: #ffffff; }
+                .item-main { flex: 1 1 360px; min-width: 220px; }
+                .mono { font-family: Consolas, monospace; }
+                .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #e2e8f0; color: #334155; }
                 .chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 999px; background: #dbeafe; color: #1e3a8a; font-size: 14px; }
                 .chip button { background: transparent; color: inherit; padding: 0; border-radius: 999px; line-height: 1; font-size: 16px; }
                 button[disabled] { opacity: 0.6; cursor: not-allowed; }
@@ -171,41 +275,46 @@ async def index():
 
                 <div class="card">
                     <h3 data-i18n="configuration">Configuration</h3>
-                    <p class="muted" data-i18n="config_desc">可調整 watch_paths、recursive、target_format、source_extensions、extension_aliases。</p>
+                    <p class="muted" data-i18n="config_desc">依照三個步驟設定：監聽路徑、轉檔方案、副檔名規範。</p>
                     <form id="configForm">
-                        <div class="field">
-                            <label for="watch_paths_input"><span data-i18n="watch_paths_label">Watch paths</span></label>
-                            <div id="watch_paths_list" class="list-items"></div>
-                            <div class="row">
-                                <input type="text" id="watch_paths_input" data-i18n-placeholder="watch_paths_placeholder" placeholder="Add one watched folder at a time" />
-                                <button type="button" id="watch_paths_add" class="secondary" data-i18n="add_item">Add</button>
+                        <div class="module">
+                            <h4 data-i18n="module_watch_title">1) 監聽路徑與遞迴設定</h4>
+                            <div class="field-help" data-i18n="module_watch_desc">每一列是一個路徑，可獨立設定是否遞迴監聽。</div>
+                            <div id="watch_paths_rows" class="item-list"></div>
+                            <div class="row" style="margin-top:8px;">
+                                <input type="text" id="watch_path_input" data-i18n-placeholder="watch_paths_placeholder" placeholder="一次新增一個監看資料夾" />
+                                <label><input type="checkbox" id="watch_path_recursive" /> <span data-i18n="recursive_watch">遞迴監看</span></label>
+                                <button type="button" id="watch_path_add" class="secondary" data-i18n="add_item">新增</button>
                             </div>
                         </div>
-                        <div class="field">
-                            <label><input type="checkbox" id="recursive" /> <span data-i18n="recursive_watch">Recursive watch</span></label>
-                        </div>
-                        <div class="field">
-                            <label for="source_extensions_select"><span data-i18n="source_extensions_label">Source extensions</span></label>
-                            <div id="source_extensions_list" class="list-items"></div>
+
+                        <div class="module">
+                            <h4 data-i18n="module_scheme_title">2) 轉檔方案</h4>
+                            <div class="field-help" data-i18n="module_scheme_desc">可建立多個方案。每個方案包含來源副檔名、目標副檔名與是否刪除原檔。</div>
+                            <div id="schemes_rows" class="item-list"></div>
+                            <div class="row" style="margin-top:8px;">
+                                <input type="text" id="scheme_name" data-i18n-placeholder="scheme_name_placeholder" placeholder="方案名稱（例如：手機照片）" />
+                                <input type="text" id="scheme_sources" data-i18n-placeholder="scheme_sources_placeholder" placeholder="來源副檔名，逗號分隔，例如 heic,heif" />
+                            </div>
                             <div class="row">
-                                <select id="source_extensions_select"></select>
-                                <input type="text" id="source_extensions_custom" data-i18n-placeholder="source_extensions_placeholder" placeholder="Add a source extension" />
-                                <button type="button" id="source_extensions_add" class="secondary" data-i18n="add_item">Add</button>
+                                <select id="scheme_target"></select>
+                                <input type="text" id="scheme_target_custom" data-i18n-placeholder="target_format_custom_placeholder" placeholder="輸入副檔名，例如 JPG 或 jpeg" />
+                                <label><input type="checkbox" id="scheme_delete_original" /> <span data-i18n="delete_original_label">轉檔後刪除原檔</span></label>
+                                <button type="button" id="scheme_add" class="secondary" data-i18n="add_item">新增</button>
                             </div>
                         </div>
-                        <div class="field">
-                            <label for="target_format"><span data-i18n="target_format_label">Target suffix</span></label>
-                            <select id="target_format"></select>
-                            <div class="field-help" data-i18n="target_format_hint">Choose the exact output suffix, including case.</div>
-                            <div class="row">
-                                <input type="text" id="target_format_custom" data-i18n-placeholder="target_format_custom_placeholder" placeholder="Type a suffix such as JPG or jpeg" />
-                                <button type="button" id="target_format_add" class="secondary" data-i18n="add_item">Add</button>
+
+                        <div class="module">
+                            <h4 data-i18n="module_alias_title">3) 副檔名規範</h4>
+                            <div class="field-help" data-i18n="module_alias_desc">設定同一格式可能出現的多種副檔名，系統會用來判斷與正規化。</div>
+                            <div id="alias_rows" class="item-list"></div>
+                            <div class="row" style="margin-top:8px;">
+                                <input type="text" id="alias_canonical" data-i18n-placeholder="alias_canonical_placeholder" placeholder="標準副檔名，例如 jpg" />
+                                <input type="text" id="alias_values" data-i18n-placeholder="alias_values_placeholder" placeholder="別名，逗號分隔，例如 jpeg,JPG,JPEG" />
+                                <button type="button" id="alias_add" class="secondary" data-i18n="add_item">新增</button>
                             </div>
                         </div>
-                        <div class="field">
-                            <label for="extension_aliases"><span data-i18n="extension_aliases_label">Extension aliases (JSON object):</span></label>
-                            <textarea id="extension_aliases" style="width:100%; min-height:120px; font-family: Consolas, monospace;"></textarea>
-                        </div>
+
                         <div class="row">
                             <button type="button" id="loadConfig" class="secondary" data-i18n="load_config">Load Config</button>
                             <button type="button" id="saveConfig" data-i18n="save_config">Save Config</button>
@@ -222,12 +331,29 @@ async def index():
 
             <script>
                 // i18next initialization
+                function mapLangKey(lng) {
+                    if (!lng) return lng;
+                    // map zh variants to our file name zh-TW.json
+                    if (String(lng).toLowerCase().startsWith('zh')) return 'zh-TW';
+                    // otherwise use primary language tag (e.g., 'en')
+                    return String(lng).split(/[-_]/)[0];
+                }
+
                 i18next.use(i18nextHttpBackend).use(i18nextBrowserLanguageDetector).init({
                     fallbackLng: 'zh-TW',
                     debug: false,
                     backend: { loadPath: '/static/locales/{{lng}}.json' }
                 }, function(err, t) {
                     if (err) console.error('i18next init error', err);
+                    // if detected language uses a different tag (e.g. zh-TW) ensure we load the mapped file
+                    try {
+                        const detected = i18next.language;
+                        const mapped = mapLangKey(detected);
+                        if (mapped && mapped !== detected) {
+                            i18next.changeLanguage(mapped).then(() => { translatePage(); }).catch(()=>{ translatePage(); });
+                            return;
+                        }
+                    } catch(e){}
                     translatePage();
                 });
 
@@ -242,18 +368,44 @@ async def index():
                         const key = el.getAttribute('data-i18n-placeholder');
                         try { el.setAttribute('placeholder', i18next.t(key)); } catch(e){}
                     });
+
+                    // Re-render dynamic modules so their buttons/labels use the latest translations.
+                    try {
+                        // If the render functions exist, use current DOM state to re-render.
+                        if (typeof getWatchPaths === 'function' && typeof renderWatchPaths === 'function') {
+                            renderWatchPaths(getWatchPaths());
+                        }
+                        if (typeof getSchemes === 'function' && typeof renderSchemes === 'function') {
+                            renderSchemes(getSchemes());
+                        }
+                        if (typeof getAliases === 'function' && typeof renderAliases === 'function') {
+                            const aliasObj = getAliases();
+                            const aliasList = Object.entries(aliasObj).map(([canonical, aliases]) => ({ canonical, aliases }));
+                            renderAliases(aliasList);
+                        }
+                        // For generic list containers created by renderList, re-run on their current values
+                        if (typeof renderList === 'function') {
+                            // re-render known containers if present
+                            ['alias_rows','watch_paths_rows','schemes_rows'].forEach(cid => {
+                                const el = document.getElementById(cid);
+                                if (!el) return;
+                                // try to preserve existing dataset-driven values by calling corresponding renderer above
+                            });
+                        }
+                    } catch(e) { console.error('translatePage re-render error', e); }
                 }
 
                 document.getElementById('langSel').addEventListener('change', (ev) => {
-                    const lng = ev.target.value;
-                    i18next.changeLanguage(lng).then(() => { localStorage.setItem('phos_lang', lng); translatePage(); });
+                    const sel = ev.target.value;
+                    const mapped = mapLangKey(sel);
+                    i18next.changeLanguage(mapped).then(() => { localStorage.setItem('phos_lang', mapped); translatePage(); }).catch(()=>{});
                 });
 
                 // Persist selection from localStorage if present
                 const saved = localStorage.getItem('phos_lang');
                 if (saved) {
-                    document.getElementById('langSel').value = saved;
-                    i18next.changeLanguage(saved).then(translatePage).catch(()=>{});
+                    // saved may be mapped (zh-TW) or simple ('en') - set selector to a reasonable display value
+                   i18next.changeLanguage(saved).then(translatePage).catch(()=>{});
                 }
 
                 function t(key) { try { return i18next.t(key); } catch(e) { return key; } }
@@ -530,14 +682,236 @@ async def index():
                     try {
                         const res = await fetch('/config');
                         const j = await res.json();
-                        // populate form fields
-                        renderList('watch_paths_list', j.watch_paths || [], value => String(value || '').trim());
-                        document.getElementById('recursive').checked = !!(j && j.recursive);
-                        renderList('source_extensions_list', j.source_extensions || [], value => normalizeSuffix(value).toLowerCase());
-                        renderSelect('source_extensions_select', collectSourceOptions(j), (j.source_extensions && j.source_extensions[0]) || 'jpg');
-                        renderSelect('target_format', collectSuffixOptions(j), j.target_format || '');
-                        document.getElementById('extension_aliases').value = JSON.stringify(j.extension_aliases || {}, null, 2);
+
+                        const normalizeWatchPaths = (cfg) => {
+                            const raw = cfg.watch_paths || [];
+                            if (!Array.isArray(raw)) return [];
+                            if (raw.length && typeof raw[0] === 'string') {
+                                const globalRecursive = !!cfg.recursive;
+                                return raw.map(path => ({ path: String(path || '').trim(), recursive: globalRecursive })).filter(item => item.path);
+                            }
+                            return raw.map(item => ({
+                                path: String((item && (item.path || item.watch_path)) || '').trim(),
+                                recursive: !!(item && item.recursive)
+                            })).filter(item => item.path);
+                        };
+
+                        const normalizeSchemes = (cfg) => {
+                            if (Array.isArray(cfg.conversion_schemes) && cfg.conversion_schemes.length) {
+                                return cfg.conversion_schemes.map((sc, idx) => ({
+                                    name: String((sc && (sc.name || sc.id)) || ('scheme-' + (idx + 1))).trim(),
+                                    source_extensions: normalizeTextList(sc && sc.source_extensions).map(x => normalizeSuffix(x).toLowerCase()),
+                                    target_format: normalizeSuffix(sc && sc.target_format),
+                                    delete_original: !!(sc && sc.delete_original),
+                                    enabled: sc && sc.enabled !== false
+                                })).filter(sc => sc.target_format || sc.source_extensions.length);
+                            }
+                            return [{
+                                name: 'default',
+                                source_extensions: normalizeTextList(cfg.source_extensions).map(x => normalizeSuffix(x).toLowerCase()),
+                                target_format: normalizeSuffix(cfg.target_format),
+                                delete_original: !!cfg.delete_original,
+                                enabled: true
+                            }].filter(sc => sc.target_format || sc.source_extensions.length);
+                        };
+
+                        const normalizeAliases = (cfg) => {
+                            const aliases = (cfg && cfg.extension_aliases && typeof cfg.extension_aliases === 'object') ? cfg.extension_aliases : {};
+                            return Object.entries(aliases).map(([canonical, aliasList]) => ({
+                                canonical: normalizeSuffix(canonical),
+                                aliases: normalizeTextList(aliasList).map(x => normalizeSuffix(x))
+                            })).filter(item => item.canonical);
+                        };
+
+                        renderSelect('scheme_target', collectSuffixOptions(j), j.target_format || 'jpg');
+                        renderWatchPaths(normalizeWatchPaths(j));
+                        renderSchemes(normalizeSchemes(j));
+                        renderAliases(normalizeAliases(j));
                     } catch (e) { console.error(e); }
+                }
+
+                function getWatchPaths() {
+                    return Array.from(document.querySelectorAll('#watch_paths_rows .watch-row')).map(row => ({
+                        path: String(row.dataset.path || '').trim(),
+                        recursive: row.dataset.recursive === 'true'
+                    })).filter(item => item.path);
+                }
+
+                function renderWatchPaths(items) {
+                    const container = document.getElementById('watch_paths_rows');
+                    if (!container) return;
+                    container.innerHTML = '';
+                    if (!items || !items.length) {
+                        const empty = document.createElement('span');
+                        empty.className = 'list-empty';
+                        empty.textContent = t('list_empty');
+                        container.appendChild(empty);
+                        return;
+                    }
+
+                    items.forEach(item => {
+                        const row = document.createElement('div');
+                        row.className = 'item-row watch-row';
+                        row.dataset.path = item.path;
+                        row.dataset.recursive = item.recursive ? 'true' : 'false';
+
+                        const main = document.createElement('div');
+                        main.className = 'item-main mono';
+                        main.textContent = item.path;
+
+                        const recursiveBadge = document.createElement('span');
+                        recursiveBadge.className = 'badge';
+                        recursiveBadge.textContent = item.recursive ? t('recursive_yes') : t('recursive_no');
+
+                        const toggleBtn = document.createElement('button');
+                        toggleBtn.type = 'button';
+                        toggleBtn.className = 'secondary';
+                        toggleBtn.textContent = t('toggle_recursive');
+                        toggleBtn.onclick = () => {
+                            const next = !item.recursive;
+                            const nextItems = getWatchPaths().map(x => x.path === item.path ? { path: x.path, recursive: next } : x);
+                            renderWatchPaths(nextItems);
+                        };
+
+                        const removeBtn = document.createElement('button');
+                        removeBtn.type = 'button';
+                        removeBtn.textContent = t('remove_item');
+                        removeBtn.onclick = () => {
+                            const nextItems = getWatchPaths().filter(x => x.path !== item.path);
+                            renderWatchPaths(nextItems);
+                        };
+
+                        row.appendChild(main);
+                        row.appendChild(recursiveBadge);
+                        row.appendChild(toggleBtn);
+                        row.appendChild(removeBtn);
+                        container.appendChild(row);
+                    });
+                }
+
+                function getSchemes() {
+                    return Array.from(document.querySelectorAll('#schemes_rows .scheme-row')).map(row => ({
+                        name: String(row.dataset.name || '').trim(),
+                        source_extensions: normalizeTextList(row.dataset.sources || '').map(x => normalizeSuffix(x).toLowerCase()),
+                        target_format: normalizeSuffix(row.dataset.target || ''),
+                        delete_original: row.dataset.deleteOriginal === 'true',
+                        enabled: row.dataset.enabled !== 'false'
+                    })).filter(item => item.target_format || item.source_extensions.length);
+                }
+
+                function renderSchemes(items) {
+                    const container = document.getElementById('schemes_rows');
+                    if (!container) return;
+                    container.innerHTML = '';
+                    if (!items || !items.length) {
+                        const empty = document.createElement('span');
+                        empty.className = 'list-empty';
+                        empty.textContent = t('list_empty');
+                        container.appendChild(empty);
+                        return;
+                    }
+
+                    items.forEach((item, idx) => {
+                        const row = document.createElement('div');
+                        row.className = 'item-row scheme-row';
+                        row.dataset.name = item.name || ('scheme-' + (idx + 1));
+                        row.dataset.sources = (item.source_extensions || []).join(',');
+                        row.dataset.target = item.target_format || '';
+                        row.dataset.deleteOriginal = item.delete_original ? 'true' : 'false';
+                        row.dataset.enabled = item.enabled === false ? 'false' : 'true';
+
+                        const main = document.createElement('div');
+                        main.className = 'item-main';
+                        const name = document.createElement('div');
+                        name.innerHTML = '<strong>' + (row.dataset.name || ('scheme-' + (idx + 1))) + '</strong>';
+                        const details = document.createElement('div');
+                        details.className = 'mono muted';
+                        details.textContent = (item.source_extensions || []).join(', ') + ' -> ' + (item.target_format || '');
+                        main.appendChild(name);
+                        main.appendChild(details);
+
+                        const delBadge = document.createElement('span');
+                        delBadge.className = 'badge';
+                        delBadge.textContent = item.delete_original ? t('delete_original_yes') : t('delete_original_no');
+
+                        const toggleDelBtn = document.createElement('button');
+                        toggleDelBtn.type = 'button';
+                        toggleDelBtn.className = 'secondary';
+                        toggleDelBtn.textContent = t('toggle_delete_original');
+                        toggleDelBtn.onclick = () => {
+                            const all = getSchemes();
+                            all[idx].delete_original = !all[idx].delete_original;
+                            renderSchemes(all);
+                        };
+
+                        const removeBtn = document.createElement('button');
+                        removeBtn.type = 'button';
+                        removeBtn.textContent = t('remove_item');
+                        removeBtn.onclick = () => {
+                            const all = getSchemes();
+                            all.splice(idx, 1);
+                            renderSchemes(all);
+                        };
+
+                        row.appendChild(main);
+                        row.appendChild(delBadge);
+                        row.appendChild(toggleDelBtn);
+                        row.appendChild(removeBtn);
+                        container.appendChild(row);
+                    });
+                }
+
+                function getAliases() {
+                    const out = {};
+                    Array.from(document.querySelectorAll('#alias_rows .alias-row')).forEach(row => {
+                        const canonical = normalizeSuffix(row.dataset.canonical || '');
+                        if (!canonical) return;
+                        out[canonical] = normalizeTextList(row.dataset.aliases || '').map(x => normalizeSuffix(x));
+                    });
+                    return out;
+                }
+
+                function renderAliases(items) {
+                    const container = document.getElementById('alias_rows');
+                    if (!container) return;
+                    container.innerHTML = '';
+                    if (!items || !items.length) {
+                        const empty = document.createElement('span');
+                        empty.className = 'list-empty';
+                        empty.textContent = t('list_empty');
+                        container.appendChild(empty);
+                        return;
+                    }
+
+                    items.forEach((item, idx) => {
+                        const row = document.createElement('div');
+                        row.className = 'item-row alias-row';
+                        row.dataset.canonical = item.canonical;
+                        row.dataset.aliases = (item.aliases || []).join(',');
+
+                        const main = document.createElement('div');
+                        main.className = 'item-main';
+                        const title = document.createElement('div');
+                        title.innerHTML = '<strong class="mono">' + item.canonical + '</strong>';
+                        const details = document.createElement('div');
+                        details.className = 'mono muted';
+                        details.textContent = (item.aliases || []).join(', ');
+                        main.appendChild(title);
+                        main.appendChild(details);
+
+                        const removeBtn = document.createElement('button');
+                        removeBtn.type = 'button';
+                        removeBtn.textContent = t('remove_item');
+                        removeBtn.onclick = () => {
+                            const all = Object.entries(getAliases()).map(([canonical, aliases]) => ({ canonical, aliases }));
+                            all.splice(idx, 1);
+                            renderAliases(all);
+                        };
+
+                        row.appendChild(main);
+                        row.appendChild(removeBtn);
+                        container.appendChild(row);
+                    });
                 }
 
                 async function saveConfig() {
@@ -547,14 +921,24 @@ async def index():
                         btn.disabled = true;
                         btn.innerHTML = '<span class="spinner"></span>' + origText;
                         const cfg = {};
-                        cfg.watch_paths = getListValues('watch_paths_list');
-                        cfg.recursive = document.getElementById('recursive').checked;
-                        cfg.source_extensions = getListValues('source_extensions_list').map(e => normalizeSuffix(e).toLowerCase());
-                        cfg.target_format = normalizeSuffix(document.getElementById('target_format').value || '');
-                        try {
-                            cfg.extension_aliases = JSON.parse(document.getElementById('extension_aliases').value || '{}');
-                        } catch (e) {
-                            showToast(t('extension_aliases_invalid_json'), true);
+
+                        cfg.watch_paths = getWatchPaths();
+                        cfg.conversion_schemes = getSchemes();
+                        cfg.extension_aliases = getAliases();
+
+                        // Backward-compatible fields for current worker logic
+                        const active = cfg.conversion_schemes.find(sc => sc.enabled !== false) || cfg.conversion_schemes[0] || null;
+                        cfg.source_extensions = active ? (active.source_extensions || []) : [];
+                        cfg.target_format = active ? normalizeSuffix(active.target_format || '') : '';
+                        cfg.delete_original = !!(active && active.delete_original);
+                        cfg.recursive = cfg.watch_paths.some(x => x.recursive);
+
+                        if (!cfg.watch_paths.length) {
+                            showToast(t('watch_paths_required'), true);
+                            return;
+                        }
+                        if (!cfg.conversion_schemes.length) {
+                            showToast(t('conversion_scheme_required'), true);
                             return;
                         }
 
@@ -573,58 +957,73 @@ async def index():
                     finally { btn.disabled = false; try { btn.textContent = origText; } catch(_){} }
                 }
 
-                function bindListControls() {
-                    const watchInput = document.getElementById('watch_paths_input');
-                    const sourceInput = document.getElementById('source_extensions_custom');
-                    const targetCustomInput = document.getElementById('target_format_custom');
+                function bindConfigEditors() {
+                    const watchInput = document.getElementById('watch_path_input');
+                    const watchRecursive = document.getElementById('watch_path_recursive');
+                    const watchBtn = document.getElementById('watch_path_add');
+                    const schemeBtn = document.getElementById('scheme_add');
+                    const aliasBtn = document.getElementById('alias_add');
+
+                    if (watchBtn) watchBtn.addEventListener('click', () => {
+                        const path = String(watchInput && watchInput.value || '').trim();
+                        if (!path) return;
+                        const next = getWatchPaths();
+                        if (!next.some(x => x.path === path)) {
+                            next.push({ path, recursive: !!(watchRecursive && watchRecursive.checked) });
+                            renderWatchPaths(next);
+                        }
+                        if (watchInput) watchInput.value = '';
+                    });
 
                     if (watchInput) {
                         watchInput.addEventListener('keydown', (ev) => {
                             if (ev.key === 'Enter') {
                                 ev.preventDefault();
-                                addListItem('watch_paths_list', 'watch_paths_input', value => String(value || '').trim());
-                            }
-                        });
-                    }
-                    if (sourceInput) {
-                        sourceInput.addEventListener('keydown', (ev) => {
-                            if (ev.key === 'Enter') {
-                                ev.preventDefault();
-                                addListItem('source_extensions_list', 'source_extensions_custom', value => normalizeSuffix(value).toLowerCase());
-                            }
-                        });
-                    }
-                    if (targetCustomInput) {
-                        targetCustomInput.addEventListener('keydown', (ev) => {
-                            if (ev.key === 'Enter') {
-                                ev.preventDefault();
-                                appendSuffixOption('target_format', targetCustomInput.value);
-                                targetCustomInput.value = '';
+                                watchBtn && watchBtn.click();
                             }
                         });
                     }
 
-                    const watchBtn = document.getElementById('watch_paths_add');
-                    const sourceBtn = document.getElementById('source_extensions_add');
-                    const targetBtn = document.getElementById('target_format_add');
-                    if (watchBtn) watchBtn.addEventListener('click', () => addListItem('watch_paths_list', 'watch_paths_input', value => String(value || '').trim()));
-                    if (sourceBtn) sourceBtn.addEventListener('click', () => {
-                        const customValue = sourceInput ? String(sourceInput.value || '').trim() : '';
-                        const select = document.getElementById('source_extensions_select');
-                        const selectedValue = customValue || (select ? select.value : '');
-                        if (!selectedValue) return;
-                        const normalized = normalizeSuffix(selectedValue).toLowerCase();
-                        const current = getListValues('source_extensions_list');
-                        if (!current.includes(normalized)) {
-                            renderList('source_extensions_list', current.concat([normalized]), value => normalizeSuffix(value).toLowerCase());
-                        }
-                        if (sourceInput) sourceInput.value = '';
-                        if (select) select.value = normalized;
-                        sourceInput && sourceInput.focus();
+                    if (schemeBtn) schemeBtn.addEventListener('click', () => {
+                        const nameEl = document.getElementById('scheme_name');
+                        const srcEl = document.getElementById('scheme_sources');
+                        const tgtEl = document.getElementById('scheme_target');
+                        const tgtCustomEl = document.getElementById('scheme_target_custom');
+                        const delEl = document.getElementById('scheme_delete_original');
+
+                        const name = String(nameEl && nameEl.value || '').trim() || ('scheme-' + (getSchemes().length + 1));
+                        const source_extensions = normalizeTextList(srcEl && srcEl.value || '').map(x => normalizeSuffix(x).toLowerCase());
+                        const target_format = normalizeSuffix((tgtCustomEl && tgtCustomEl.value) || (tgtEl && tgtEl.value) || '');
+                        if (!target_format) return;
+
+                        const next = getSchemes();
+                        next.push({
+                            name,
+                            source_extensions,
+                            target_format,
+                            delete_original: !!(delEl && delEl.checked),
+                            enabled: true
+                        });
+                        renderSchemes(next);
+                        if (nameEl) nameEl.value = '';
+                        if (srcEl) srcEl.value = '';
+                        if (tgtCustomEl) tgtCustomEl.value = '';
                     });
-                    if (targetBtn) targetBtn.addEventListener('click', () => {
-                        appendSuffixOption('target_format', targetCustomInput ? targetCustomInput.value : '');
-                        if (targetCustomInput) targetCustomInput.value = '';
+
+                    if (aliasBtn) aliasBtn.addEventListener('click', () => {
+                        const canonicalEl = document.getElementById('alias_canonical');
+                        const valuesEl = document.getElementById('alias_values');
+                        const canonical = normalizeSuffix(canonicalEl && canonicalEl.value || '');
+                        if (!canonical) return;
+                        const aliases = normalizeTextList(valuesEl && valuesEl.value || '').map(x => normalizeSuffix(x));
+
+                        const map = getAliases();
+                        map[canonical] = aliases;
+                        const next = Object.entries(map).map(([k, v]) => ({ canonical: k, aliases: v }));
+                        renderAliases(next);
+
+                        if (canonicalEl) canonicalEl.value = '';
+                        if (valuesEl) valuesEl.value = '';
                     });
                 }
 
@@ -632,7 +1031,7 @@ async def index():
                 document.getElementById('togglePause').addEventListener('click', togglePause);
                 document.getElementById('loadConfig').addEventListener('click', loadConfig);
                 document.getElementById('saveConfig').addEventListener('click', saveConfig);
-                bindListControls();
+                bindConfigEditors();
 
                 // Serialized polling loops to avoid overlapping fetches
                 async function pollStatus() {

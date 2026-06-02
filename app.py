@@ -22,7 +22,11 @@ def main():
                 cfg = yaml.safe_load(f)
         except Exception:
             pass
-        paths = cfg.get('watch_paths', ['./watched'])
+        paths = cfg.get('watch_paths', [{'path': './watched', 'recursive': True}])
+        if isinstance(paths, list) and paths and isinstance(paths[0], str):
+            # Legacy config compatibility: convert to object form with global recursive flag.
+            default_recursive = bool(cfg.get('recursive', True))
+            paths = [{'path': p, 'recursive': default_recursive} for p in paths]
         start_watcher(paths)
     elif args.mode == 'worker':
         run_worker()

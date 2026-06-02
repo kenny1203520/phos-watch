@@ -25,9 +25,19 @@ class _Handler(FileSystemEventHandler):
 
 def start_watcher(paths):
     observer = Observer()
-    for p in paths:
-        handler = _Handler(p)
-        observer.schedule(handler, path=p, recursive=True)
+    for entry in paths:
+        if isinstance(entry, dict):
+            path = entry.get('path') or entry.get('watch_path')
+            recursive = bool(entry.get('recursive', True))
+        else:
+            path = entry
+            recursive = True
+
+        if not path:
+            continue
+        handler = _Handler(path)
+        observer.schedule(handler, path=path, recursive=recursive)
+        logger.info('Watching path=%s recursive=%s', path, recursive)
     observer.start()
     try:
         while True:
