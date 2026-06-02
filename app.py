@@ -5,7 +5,6 @@ import uvicorn
 from watcher import start_watcher
 from worker import run_worker
 
-
 def main():
     parser = argparse.ArgumentParser(description='phos-watch entrypoint')
     parser.add_argument('--mode', choices=['watch','worker','web'], default='web')

@@ -27,3 +27,33 @@ def test_pillow_fallback(tmp_path, monkeypatch):
         # cleanup
         if out_path.exists():
             out_path.unlink()
+
+
+def test_process_item_renames_same_format_only(tmp_path, monkeypatch):
+    src = tmp_path / 'photo.JPG'
+    src.write_bytes(b'not-an-image-but-rename-only-should-not-open-it')
+
+    called = {'opened': False}
+
+    def fail_open(*args, **kwargs):
+        called['opened'] = True
+        raise AssertionError('Image backend should not be used for rename-only normalization')
+
+    monkeypatch.setattr(worker, '_find_imagemagick_command', lambda: None)
+    monkeypatch.setattr(worker, 'os', worker.os)
+    monkeypatch.setattr(worker, 'shutil', worker.shutil)
+    monkeypatch.setattr(worker, 'time', worker.time)
+    monkeypatch.setattr(worker, 'subprocess', worker.subprocess)
+    monkeypatch.setattr(worker, '_should_rename_only', lambda src_path, target_format, cfg: True)
+
+    import PIL.Image
+    monkeypatch.setattr(PIL.Image, 'open', fail_open)
+
+    cfg = {'target_format': 'jpg', 'extension_aliases': {'jpg': ['jpg', 'jpeg', 'JPG', 'JPEG']}}
+    item = {'path': str(src)}
+
+    success = worker.process_item(item, cfg)
+
+    assert success is True
+    assert any(p.name == 'photo.jpg' for p in tmp_path.iterdir())
+    assert called['opened'] is False

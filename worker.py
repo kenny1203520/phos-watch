@@ -106,6 +106,51 @@ def _normalize_ext(value: str) -> str:
     return str(value or '').strip().lower().lstrip('.')
 
 
+def _build_extension_map(cfg):
+    aliases = cfg.get('extension_aliases', {}) or {}
+    ext_map = {}
+
+    def register(ext: str, canonical: str):
+        normalized_ext = _normalize_ext(ext)
+        normalized_canonical = _normalize_ext(canonical)
+        if normalized_ext and normalized_canonical:
+            ext_map[normalized_ext] = normalized_canonical
+
+    for canonical, alias_list in aliases.items():
+        register(canonical, canonical)
+        if isinstance(alias_list, list):
+            for alias in alias_list:
+                register(alias, canonical)
+
+    return ext_map
+
+
+def _resolve_extension(value: str, ext_map: dict) -> str:
+    normalized = _normalize_ext(value)
+    return ext_map.get(normalized, normalized)
+
+
+def _should_rename_only(src: str, target_format: str, cfg) -> bool:
+    src_ext = _normalize_ext(os.path.splitext(src)[1])
+    target_ext = _normalize_ext(target_format)
+    if not src_ext or not target_ext:
+        return False
+
+    ext_map = _build_extension_map(cfg)
+    return _resolve_extension(src_ext, ext_map) == _resolve_extension(target_ext, ext_map)
+
+
+def _rename_output_path(src: str, out: str):
+    if os.path.normcase(src) == os.path.normcase(out) and src != out:
+        base_dir = os.path.dirname(out)
+        temp_name = f".{os.path.basename(out)}.phos-renaming-{os.getpid()}-{int(time.time() * 1000)}"
+        temp_path = os.path.join(base_dir, temp_name)
+        os.replace(src, temp_path)
+        os.replace(temp_path, out)
+        return
+    os.replace(src, out)
+
+
 def _source_extension_allowed(path: str, cfg) -> bool:
     allowed = cfg.get('source_extensions')
     aliases = cfg.get('extension_aliases', {}) or {}
@@ -141,10 +186,19 @@ def process_item(item, cfg):
         logger.info('Skipping unsupported source extension: %s', src)
         return False
 
-    target_format = cfg.get('target_format', 'jpg')
+    target_format = str(cfg.get('target_format', 'jpg') or 'jpg').strip().lstrip('.') or 'jpg'
     out = rules.normalize_output_path(src, target_format)
     out_dir = os.path.dirname(out)
     os.makedirs(out_dir, exist_ok=True)
+
+    if _should_rename_only(src, target_format, cfg):
+        try:
+            _rename_output_path(src, out)
+            logger.info('Renamed %s -> %s', src, out)
+            return True
+        except Exception:
+            logger.exception('Rename-only normalization failed for %s', src)
+            return False
 
     cmd_base = _find_imagemagick_command()
     # If ImageMagick is not available, we'll use Pillow fallback below.
