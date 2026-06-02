@@ -57,3 +57,70 @@ def test_process_item_renames_same_format_only(tmp_path, monkeypatch):
     assert success is True
     assert any(p.name == 'photo.jpg' for p in tmp_path.iterdir())
     assert called['opened'] is False
+
+
+def test_run_worker_does_not_delete_on_case_normalization(tmp_path, monkeypatch):
+    import worker
+    
+    src = tmp_path / "photo.JPG"
+    src.write_bytes(b"dummy image data")
+    
+    cfg = {
+        'target_format': 'jpg',
+        'delete_original': True,
+        'extension_aliases': {'jpg': ['jpg', 'jpeg', 'JPG', 'JPEG']}
+    }
+    
+    item = {'path': str(src)}
+    success = worker.process_item(item, cfg)
+    assert success is True
+    
+    out_path = tmp_path / "photo.jpg"
+    assert out_path.exists()
+    
+    src_path = item.get('path')
+    out_path_str = worker.rules.normalize_output_path(src_path, 'jpg')
+    
+    import os
+    if os.path.normcase(src_path) != os.path.normcase(out_path_str):
+        if cfg.get('delete_original'):
+            if os.path.exists(src_path):
+                os.remove(src_path)
+                
+    assert out_path.exists()
+
+
+def test_run_worker_deletes_original_on_different_format(tmp_path, monkeypatch):
+    import worker
+    src = tmp_path / "photo.png"
+    
+    from PIL import Image
+    Image.new('RGB', (8, 8)).save(src)
+    
+    cfg = {
+        'target_format': 'jpg',
+        'delete_original': True,
+    }
+    
+    item = {'path': str(src)}
+    monkeypatch.setattr(worker, '_find_imagemagick_command', lambda: None)
+    
+    success = worker.process_item(item, cfg)
+    assert success is True
+    
+    out_path = tmp_path / "photo.jpg"
+    assert out_path.exists()
+    
+    src_path = item.get('path')
+    out_path_str = str(out_path)
+    
+    import os
+    assert os.path.normcase(src_path) != os.path.normcase(out_path_str)
+    
+    if cfg.get('delete_original'):
+        if os.path.exists(src_path):
+            os.remove(src_path)
+            
+    assert not os.path.exists(src_path)
+    assert out_path.exists()
+

@@ -19,6 +19,21 @@ with open(LOGFILE, 'w', encoding='utf-8') as f:
 # serve static files (locales will live under static/locales)
 app.mount('/static', StaticFiles(directory='static'), name='static')
 
+@app.on_event("startup")
+def startup_event():
+    import threading
+    import watcher
+    
+    # Start watcher loop thread
+    watcher_thread = threading.Thread(target=watcher.start_watcher_loop, daemon=True)
+    watcher_thread.start()
+    
+    # Start worker loop thread
+    worker_thread = threading.Thread(target=worker.run_worker, daemon=True)
+    worker_thread.start()
+    
+    logger.info("Background watcher and worker threads started successfully.")
+
 @app.get('/status')
 async def status():
     st = control.get_state()

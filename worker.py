@@ -97,7 +97,11 @@ def _find_imagemagick_command():
     from shutil import which
     if which('magick'):
         return 'magick'
-    if which('convert'):
+    conv = which('convert')
+    if conv:
+        # On Windows, convert.exe in system32 is a partition converter, NOT ImageMagick
+        if os.name == 'nt' and 'system32' in conv.lower():
+            return None
         return 'convert'
     return None
 
@@ -188,53 +192,54 @@ def process_item(item, cfg):
 
     target_format = str(cfg.get('target_format', 'jpg') or 'jpg').strip().lstrip('.') or 'jpg'
     out = rules.normalize_output_path(src, target_format)
+    
+    if src == out:
+        logger.info('File %s is already in target format and case-normalized', src)
+        return True
+
     out_dir = os.path.dirname(out)
     os.makedirs(out_dir, exist_ok=True)
 
-    if _should_rename_only(src, target_format, cfg):
-        try:
-            _rename_output_path(src, out)
-            logger.info('Renamed %s -> %s', src, out)
-            return True
-        except Exception:
-            logger.exception('Rename-only normalization failed for %s', src)
-            return False
-
-    cmd_base = _find_imagemagick_command()
-    # If ImageMagick is not available, we'll use Pillow fallback below.
-    if cmd_base:
-        cmd = [cmd_base, src, out] if cmd_base == 'convert' else [cmd_base, src, out]
-    else:
-        cmd = None
-
-    max_retries = int(cfg.get('max_retries', 2))
+    max_retries = int(cfg.get('max_retries', 3))
     backoff = float(cfg.get('retry_backoff', 1.0))
 
-    if cmd is not None:
-        for attempt in range(1, max_retries + 1):
-            try:
-                subprocess.check_call(cmd)
-                logger.info('Converted %s -> %s', src, out)
-                return True
-            except subprocess.CalledProcessError as e:
-                logger.warning('Attempt %d: conversion failed for %s: %s', attempt, src, e)
-                if attempt < max_retries:
-                    time.sleep(backoff * attempt)
-                else:
-                    logger.exception('All attempts failed for %s', src)
-                    break
+    for attempt in range(1, max_retries + 1):
+        try:
+            if not os.path.exists(src):
+                logger.warning('Source file does not exist: %s', src)
+                return False
 
-    # Either ImageMagick not present, or all attempts failed — try Pillow fallback
-    try:
-        from PIL import Image
-        im = Image.open(src)
-        im = im.convert('RGB')
-        im.save(out, quality=cfg.get('image_quality', 85))
-        logger.info('Pillow fallback converted %s -> %s', src, out)
-        return True
-    except Exception as e2:
-        logger.exception('Pillow fallback failed for %s: %s', src, e2)
-        return False
+            if _should_rename_only(src, target_format, cfg):
+                _rename_output_path(src, out)
+                logger.info('Renamed %s -> %s', src, out)
+                return True
+
+            cmd_base = _find_imagemagick_command()
+            success_magick = False
+            if cmd_base:
+                try:
+                    cmd = [cmd_base, src, out]
+                    subprocess.check_call(cmd)
+                    logger.info('Converted %s -> %s', src, out)
+                    success_magick = True
+                except subprocess.CalledProcessError as e:
+                    logger.warning('ImageMagick conversion failed for %s: %s. Trying Pillow fallback...', src, e)
+
+            if not success_magick:
+                # Pillow fallback
+                from PIL import Image
+                with Image.open(src) as im:
+                    im = im.convert('RGB')
+                    im.save(out, quality=cfg.get('image_quality', 85))
+                logger.info('Pillow fallback converted %s -> %s', src, out)
+            return True
+        except Exception as e:
+            logger.warning('Attempt %d: failed to process %s: %s', attempt, src, e)
+            if attempt < max_retries:
+                time.sleep(backoff * attempt)
+            else:
+                logger.exception('All attempts failed for %s', src)
+                return False
 
 
 def run_worker(poll_interval=1):
@@ -267,13 +272,23 @@ def run_worker(poll_interval=1):
                 if success:
                     # handle original file per config
                     try:
-                        if cfg.get('delete_original'):
-                            os.remove(item.get('path'))
-                        elif cfg.get('archive_dir'):
-                            archive_dir = cfg.get('archive_dir')
-                            os.makedirs(archive_dir, exist_ok=True)
-                            basename = os.path.basename(item.get('path'))
-                            shutil.move(item.get('path'), os.path.join(archive_dir, basename))
+                        src_path = item.get('path')
+                        target_format = str(cfg.get('target_format', 'jpg') or 'jpg').strip().lstrip('.') or 'jpg'
+                        out_path = rules.normalize_output_path(src_path, target_format)
+                        
+                        # Only delete/archive if it is a different file on disk
+                        if os.path.normcase(src_path) != os.path.normcase(out_path):
+                            if cfg.get('delete_original'):
+                                if os.path.exists(src_path):
+                                    os.remove(src_path)
+                                    logger.info('Deleted original file: %s', src_path)
+                            elif cfg.get('archive_dir'):
+                                archive_dir = cfg.get('archive_dir')
+                                os.makedirs(archive_dir, exist_ok=True)
+                                basename = os.path.basename(src_path)
+                                if os.path.exists(src_path):
+                                    shutil.move(src_path, os.path.join(archive_dir, basename))
+                                    logger.info('Archived original file %s to %s', src_path, archive_dir)
                     except Exception:
                         logger.exception('Failed post-processing on %s', item.get('path'))
             except Exception:
