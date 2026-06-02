@@ -17,6 +17,7 @@ queue.log
 .phos_watch.log
 
 # config files
+config.yaml
 control.json
 
 # OS files
