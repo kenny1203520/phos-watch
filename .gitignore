@@ -12,6 +12,7 @@ dist/
 *.egg-info/
 
 # Logs and queue files
+logs/
 *.log
 queue.log
 .phos_watch.log
