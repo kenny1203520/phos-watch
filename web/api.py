@@ -21,7 +21,8 @@ app.mount('/static', StaticFiles(directory='static'), name='static')
 
 @app.get('/status')
 async def status():
-    return JSONResponse({'queue_length': q.qlen()})
+    st = control.get_state()
+    return JSONResponse({'queue_length': q.qlen(), 'paused': bool(st.get('paused', False))})
 
 @app.get('/config')
 async def get_config():
@@ -633,12 +634,31 @@ async def index():
                 document.getElementById('saveConfig').addEventListener('click', saveConfig);
                 bindListControls();
 
-                setInterval(updateQ, 2000);
-                setInterval(loadControl, 2500);
-                setInterval(refreshQueue, 5000);
-                updateQ();
-                loadControl();
-                refreshQueue();
+                // Serialized polling loops to avoid overlapping fetches
+                async function pollStatus() {
+                    while (true) {
+                        try {
+                            const res = await fetch('/status');
+                            const j = await res.json();
+                            document.getElementById('qlen').innerText = j.queue_length;
+                            document.getElementById('pausedState').innerText = j.paused ? t('paused') : t('running');
+                        } catch (e) { console.error(e); }
+                        await new Promise(r => setTimeout(r, 2000));
+                    }
+                }
+
+                async function pollQueue() {
+                    while (true) {
+                        try {
+                            await refreshQueue();
+                        } catch (e) { console.error(e); }
+                        await new Promise(r => setTimeout(r, 5000));
+                    }
+                }
+
+                // start polling and initial load
+                pollStatus();
+                pollQueue();
                 loadConfig();
 
                 const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/logs');
