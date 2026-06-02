@@ -67,5 +67,19 @@ def main():
     print("Build complete! Executable is located in the 'dist' directory.")
     print("==================================================")
 
+    # 4. Build Docker image if Docker is installed and running
+    from shutil import which
+    if which("docker"):
+        print("\nDocker found. Building Docker image 'phos-watch:latest'...")
+        try:
+            docker_cmd = ["docker", "build", "-t", "phos-watch:latest", "."]
+            print(f"Running command: {' '.join(docker_cmd)}")
+            subprocess.check_call(docker_cmd)
+            print("Docker image 'phos-watch:latest' built successfully!")
+        except Exception as de:
+            print(f"Failed to build Docker image: {de}")
+    else:
+        print("\nDocker command not found. Skipping Docker image creation.")
+
 if __name__ == '__main__':
     main()

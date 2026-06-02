@@ -293,6 +293,10 @@ async def index():
         <head>
             <title data-i18n="title">phos-watch Admin</title>
             <meta charset="utf-8" />
+            <link rel="icon" type="image/x-icon" href="/static/favicon.ico" />
+            <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png" />
+            <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png" />
+            <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png" />
             <style>
                 body { font-family: Arial, sans-serif; margin: 16px; background: #f6f7fb; color: #1f2937; }
                 .grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
