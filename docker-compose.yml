@@ -9,6 +9,7 @@ services:
     volumes:
       - ./watched:/app/watched
       - ./config.yaml:/app/config.yaml:ro
+      - ./logs:/app/logs
     depends_on:
       - redis
     environment:
