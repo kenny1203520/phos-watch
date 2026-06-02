@@ -6,9 +6,9 @@ import uuid
 logger = logging.getLogger(__name__)
 
 # Allow users to explicitly disable Redis via env var PHOS_USE_REDIS (0/false to disable)
-REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+REDIS_URL = os.getenv('REDIS_URL')
 _use_redis_env = os.getenv('PHOS_USE_REDIS')
-USE_REDIS = True
+USE_REDIS = False if REDIS_URL is None else True
 if _use_redis_env is not None and _use_redis_env.lower() in ('0', 'false', 'no'):
     USE_REDIS = False
 
