@@ -37,7 +37,12 @@ def startup_event():
 @app.get('/status')
 async def status():
     st = control.get_state()
-    return JSONResponse({'queue_length': q.qlen(), 'paused': bool(st.get('paused', False))})
+    return JSONResponse({
+        'queue_length': q.qlen(),
+        'paused': bool(st.get('paused', False)),
+        'watcher_status': control.get_status('watcher'),
+        'worker_status': control.get_status('worker')
+    })
 
 @app.get('/config')
 async def get_config():
@@ -252,6 +257,10 @@ async def index():
                 .item-main { flex: 1 1 360px; min-width: 220px; }
                 .mono { font-family: Consolas, monospace; }
                 .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #e2e8f0; color: #334155; }
+                .status-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: bold; text-decoration: none; }
+                .status-normal { background: #d1fae5; color: #065f46; }
+                .status-abnormal { background: #fee2e2; color: #991b1b; }
+                .status-offline { background: #f3f4f6; color: #374151; }
                 .chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 999px; background: #dbeafe; color: #1e3a8a; font-size: 14px; }
                 .chip button { background: transparent; color: inherit; padding: 0; border-radius: 999px; line-height: 1; font-size: 16px; }
                 button[disabled] { opacity: 0.6; cursor: not-allowed; }
@@ -278,6 +287,8 @@ async def index():
                     <div class="row">
                         <strong data-i18n="queue_length_label">Queue length:</strong> <span id="qlen">...</span>
                         <strong data-i18n="pause_state_label">Pause state:</strong> <span id="pausedState">...</span>
+                        <strong data-i18n="watcher_status_label">Watcher status:</strong> <span id="watcherStatus" class="status-badge status-offline">...</span>
+                        <strong data-i18n="worker_status_label">Worker status:</strong> <span id="workerStatus" class="status-badge status-offline">...</span>
                         <button id="togglePause" data-i18n="toggle_pause">Toggle Pause</button>
                         <button id="refreshQueue" class="secondary" data-i18n="refresh_queue">Refresh Queue</button>
                     </div>
@@ -423,7 +434,23 @@ async def index():
                    i18next.changeLanguage(saved).then(translatePage).catch(()=>{});
                 }
 
-                function t(key) { try { return i18next.t(key); } catch(e) { return key; } }
+                function t(key) {
+                    try {
+                        if (typeof i18next !== 'undefined' && i18next.isInitialized && i18next.exists(key)) {
+                            return i18next.t(key);
+                        }
+                    } catch(e) {}
+                    const fallbacks = {
+                        'paused': '已暫停',
+                        'running': '運行中',
+                        'status_normal': '正常',
+                        'status_abnormal': '異常',
+                        'status_offline': '下線',
+                        'watcher_status_label': '監聽器狀態：',
+                        'worker_status_label': '處理器狀態：'
+                    };
+                    return fallbacks[key] || key;
+                }
 
                 function normalizeTextList(value) {
                     if (Array.isArray(value)) return value.map(item => String(item).trim()).filter(Boolean);
@@ -1048,6 +1075,27 @@ async def index():
                 document.getElementById('saveConfig').addEventListener('click', saveConfig);
                 bindConfigEditors();
 
+                function updateComponentStatus(elementId, statusInfo) {
+                    const el = document.getElementById(elementId);
+                    if (!el) return;
+                    if (!statusInfo) {
+                        el.className = 'status-badge status-offline';
+                        el.innerText = t('status_offline');
+                        el.title = '';
+                        return;
+                    }
+                    const status = statusInfo.status || 'offline';
+                    const error = statusInfo.error || '';
+                    
+                    el.className = 'status-badge status-' + status;
+                    el.innerText = t('status_' + status);
+                    if (error) {
+                        el.title = error;
+                    } else {
+                        el.title = '';
+                    }
+                }
+
                 // Serialized polling loops to avoid overlapping fetches
                 async function pollStatus() {
                     while (true) {
@@ -1056,6 +1104,8 @@ async def index():
                             const j = await res.json();
                             document.getElementById('qlen').innerText = j.queue_length;
                             document.getElementById('pausedState').innerText = j.paused ? t('paused') : t('running');
+                            updateComponentStatus('watcherStatus', j.watcher_status);
+                            updateComponentStatus('workerStatus', j.worker_status);
                         } catch (e) { console.error(e); }
                         await new Promise(r => setTimeout(r, 2000));
                     }

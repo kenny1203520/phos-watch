@@ -11,6 +11,24 @@ import phos_queue as q
 logger = logging.getLogger(__name__)
 
 
+def needs_processing(filepath: str, cfg: dict) -> bool:
+    import worker
+    import rules
+    
+    path_obj = Path(filepath)
+    if path_obj.is_dir():
+        return False
+    if not worker._source_extension_allowed(filepath, cfg):
+        return False
+    
+    target_format = str(cfg.get('target_format', 'jpg') or 'jpg').strip().lstrip('.') or 'jpg'
+    out = rules.normalize_output_path(filepath, target_format)
+    
+    if filepath == out:
+        return False
+    return True
+
+
 class _Handler(FileSystemEventHandler):
     def __init__(self, watch_root):
         super().__init__()
@@ -20,6 +38,12 @@ class _Handler(FileSystemEventHandler):
         if event.is_directory:
             return
         path = Path(event.src_path)
+        
+        import worker
+        cfg = worker.load_config()
+        if not needs_processing(str(path), cfg):
+            return
+
         logger.info('Detected new file: %s', path)
         q.enqueue(str(path))
 
@@ -27,35 +51,25 @@ class _Handler(FileSystemEventHandler):
         if event.is_directory:
             return
         path = Path(event.dest_path)
+        
+        import worker
+        cfg = worker.load_config()
+        if not needs_processing(str(path), cfg):
+            return
+
         logger.info('Detected moved file: %s', path)
         q.enqueue(str(path))
 
 
 def _scan_and_enqueue(watch_path: str, recursive: bool, cfg: dict):
-    import worker
-    import rules
-    
     try:
         p = Path(watch_path)
         if not p.exists():
             return
             
-        def needs_processing(filepath: Path):
-            if filepath.is_dir():
-                return False
-            if not worker._source_extension_allowed(str(filepath), cfg):
-                return False
-            
-            target_format = str(cfg.get('target_format', 'jpg') or 'jpg').strip().lstrip('.') or 'jpg'
-            out = rules.normalize_output_path(str(filepath), target_format)
-            
-            if str(filepath) == out:
-                return False
-            return True
-
         pattern = '**/*' if recursive else '*'
         for filepath in p.glob(pattern):
-            if needs_processing(filepath):
+            if needs_processing(str(filepath), cfg):
                 logger.info('Startup scan: enqueuing %s', filepath)
                 q.enqueue(str(filepath))
     except Exception:
@@ -87,12 +101,14 @@ def start_watcher(paths):
 
 
 def start_watcher_loop(config_path='config.yaml'):
+    import control
     observer = None
     last_paths = None
     last_mtime = None
 
     while True:
         try:
+            control.update_status('watcher', 'normal')
             mtime = os.path.getmtime(config_path) if os.path.exists(config_path) else None
             if mtime != last_mtime:
                 # Reload config
@@ -147,8 +163,12 @@ def start_watcher_loop(config_path='config.yaml'):
                     
                     last_paths = normalized_paths
                 last_mtime = mtime
-        except Exception:
+        except Exception as e:
             logger.exception('Error in watcher config reload loop')
+            try:
+                control.update_status('watcher', 'abnormal', error=str(e))
+            except Exception:
+                pass
         
         time.sleep(2)
 

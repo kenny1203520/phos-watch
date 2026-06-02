@@ -53,5 +53,35 @@ def set_paused(state: bool):
     _write_file(current)
 
 
+import time
+
+_status = {
+    'watcher': {
+        'status': 'offline',
+        'last_heartbeat': 0.0,
+        'error': None
+    },
+    'worker': {
+        'status': 'offline',
+        'last_heartbeat': 0.0,
+        'error': None
+    }
+}
+
+
+def update_status(component: str, status: str, error: str = None):
+    if component in _status:
+        _status[component]['status'] = status
+        _status[component]['last_heartbeat'] = time.time()
+        _status[component]['error'] = error
+
+
+def get_status(component: str):
+    info = _status.get(component, {'status': 'offline', 'last_heartbeat': 0.0, 'error': None})
+    if info['status'] != 'offline' and time.time() - info['last_heartbeat'] > 10.0:
+        return {'status': 'offline', 'error': 'Heartbeat timeout'}
+    return info
+
+
 def get_state():
     return {'paused': is_paused()}

@@ -260,40 +260,49 @@ def run_worker(poll_interval=1):
         _observer = None
 
     while True:
-        cfg = load_config_if_changed()
-        if control.is_paused():
-            logger.info('Worker paused; sleeping %s seconds', poll_interval)
-            time.sleep(poll_interval)
-            continue
-        item = q.dequeue(timeout=5)
-        if item:
+        try:
+            control.update_status('worker', 'normal')
+            cfg = load_config_if_changed()
+            if control.is_paused():
+                logger.info('Worker paused; sleeping %s seconds', poll_interval)
+                time.sleep(poll_interval)
+                continue
+            item = q.dequeue(timeout=5)
+            if item:
+                try:
+                    success = process_item(item, cfg)
+                    if success:
+                        # handle original file per config
+                        try:
+                            src_path = item.get('path')
+                            target_format = str(cfg.get('target_format', 'jpg') or 'jpg').strip().lstrip('.') or 'jpg'
+                            out_path = rules.normalize_output_path(src_path, target_format)
+                            
+                            # Only delete/archive if it is a different file on disk
+                            if os.path.normcase(src_path) != os.path.normcase(out_path):
+                                if cfg.get('delete_original'):
+                                    if os.path.exists(src_path):
+                                        os.remove(src_path)
+                                        logger.info('Deleted original file: %s', src_path)
+                                elif cfg.get('archive_dir'):
+                                    archive_dir = cfg.get('archive_dir')
+                                    os.makedirs(archive_dir, exist_ok=True)
+                                    basename = os.path.basename(src_path)
+                                    if os.path.exists(src_path):
+                                        shutil.move(src_path, os.path.join(archive_dir, basename))
+                                        logger.info('Archived original file %s to %s', src_path, archive_dir)
+                        except Exception:
+                            logger.exception('Failed post-processing on %s', item.get('path'))
+                except Exception:
+                    logger.exception('Error processing item %s', item)
+            else:
+                time.sleep(poll_interval)
+        except Exception as e:
+            logger.exception('Error in worker main loop')
             try:
-                success = process_item(item, cfg)
-                if success:
-                    # handle original file per config
-                    try:
-                        src_path = item.get('path')
-                        target_format = str(cfg.get('target_format', 'jpg') or 'jpg').strip().lstrip('.') or 'jpg'
-                        out_path = rules.normalize_output_path(src_path, target_format)
-                        
-                        # Only delete/archive if it is a different file on disk
-                        if os.path.normcase(src_path) != os.path.normcase(out_path):
-                            if cfg.get('delete_original'):
-                                if os.path.exists(src_path):
-                                    os.remove(src_path)
-                                    logger.info('Deleted original file: %s', src_path)
-                            elif cfg.get('archive_dir'):
-                                archive_dir = cfg.get('archive_dir')
-                                os.makedirs(archive_dir, exist_ok=True)
-                                basename = os.path.basename(src_path)
-                                if os.path.exists(src_path):
-                                    shutil.move(src_path, os.path.join(archive_dir, basename))
-                                    logger.info('Archived original file %s to %s', src_path, archive_dir)
-                    except Exception:
-                        logger.exception('Failed post-processing on %s', item.get('path'))
+                control.update_status('worker', 'abnormal', error=str(e))
             except Exception:
-                logger.exception('Error processing item %s', item)
-        else:
+                pass
             time.sleep(poll_interval)
 
 
