@@ -64,5 +64,12 @@
   "scheme_name_placeholder": "方案名稱（例如：手機照片）",
   "scheme_sources_placeholder": "來源副檔名，逗號分隔，例如 heic,heif",
   "alias_canonical_placeholder": "標準副檔名，例如 jpg",
-  "alias_values_placeholder": "別名，逗號分隔，例如 jpeg,JPG,JPEG"
+  "alias_values_placeholder": "別名，逗號分隔，例如 jpeg,JPG,JPEG",
+  "module_log_title": "4) 日誌備份與輪轉設定",
+  "module_log_desc": "設定日誌檔案的保留上限，若超過限制將會自動輪轉備份。",
+  "log_max_lines_label": "最大行數 (0表示不限制)",
+  "log_max_size_kb_label": "最大大小 (KB, 0表示不限制)",
+  "log_max_hours_label": "最大時間 (小時, 0表示不限制)",
+  "log_backup_count_label": "保留備份檔個數",
+  "invalid_path_error": "路徑包含非法字元，請重新輸入！"
 }

@@ -8,8 +8,194 @@ import control
 import rules
 import yaml
 import threading
+import hashlib
+from logging.handlers import BaseRotatingHandler
 
 logger = logging.getLogger(__name__)
+
+
+class PhosRotatingFileHandler(BaseRotatingHandler):
+    def __init__(self, filename, mode='a', max_bytes=0, max_lines=0, max_hours=0, backupCount=5, encoding='utf-8', delay=False):
+        self.max_bytes = max_bytes
+        self.max_lines = max_lines
+        self.max_hours = max_hours
+        self.backupCount = backupCount
+        self.last_rotation_time = time.time()
+        self.line_count = 0
+        if os.path.exists(filename):
+            self.last_rotation_time = os.path.getmtime(filename)
+            self._recount_lines(filename)
+        super().__init__(filename, mode, encoding, delay)
+
+    def _recount_lines(self, filename):
+        try:
+            with open(filename, 'rb') as f:
+                self.line_count = sum(1 for _ in f)
+        except Exception:
+            self.line_count = 0
+
+    def shouldRollover(self, record):
+        if self.stream is None:
+            self.stream = self._open()
+        
+        # 1. Size check
+        if self.max_bytes > 0:
+            try:
+                self.stream.seek(0, 2)
+                msg_len = len(self.format(record).encode(self.encoding or 'utf-8'))
+                if self.stream.tell() + msg_len >= self.max_bytes:
+                    return True
+            except Exception:
+                pass
+        
+        # 2. Line check
+        if self.max_lines > 0:
+            if self.line_count >= self.max_lines:
+                return True
+                
+        # 3. Time check (hours)
+        if self.max_hours > 0:
+            current_time = time.time()
+            if (current_time - self.last_rotation_time) >= (self.max_hours * 3600):
+                return True
+                
+        return False
+
+    def doRollover(self):
+        if self.stream:
+            self.stream.close()
+            self.stream = None
+        if self.backupCount > 0:
+            for i in range(self.backupCount - 1, 0, -1):
+                sfn = self.rotation_filename(f"{self.baseFilename}.{i}")
+                dfn = self.rotation_filename(f"{self.baseFilename}.{i+1}")
+                if os.path.exists(sfn):
+                    if os.path.exists(dfn):
+                        os.remove(dfn)
+                    os.rename(sfn, dfn)
+            dfn = self.rotation_filename(f"{self.baseFilename}.1")
+            if os.path.exists(dfn):
+                os.remove(dfn)
+            if os.path.exists(self.baseFilename):
+                os.rename(self.baseFilename, dfn)
+        self.last_rotation_time = time.time()
+        self.line_count = 0
+        if not self.delay:
+            self.stream = self._open()
+
+    def emit(self, record):
+        try:
+            if self.shouldRollover(record):
+                self.doRollover()
+            msg = self.format(record) + self.terminator
+            super().emit(record)
+            self.line_count += msg.count('\n')
+        except Exception:
+            self.handleError(record)
+
+
+def setup_phos_logging(cfg=None):
+    if cfg is None:
+        cfg = load_config()
+    log_file = os.getenv('PHOS_LOG_FILE', 'phos_watch.log')
+    max_lines = int(cfg.get('log_max_lines', 0))
+    max_size_kb = float(cfg.get('log_max_size_kb', 0))
+    max_bytes = int(max_size_kb * 1024)
+    max_hours = float(cfg.get('log_max_hours', 0))
+    backup_count = int(cfg.get('log_backup_count', 5))
+
+    root_logger = logging.getLogger()
+    # Check if already added
+    handler = None
+    for h in root_logger.handlers:
+        if isinstance(h, PhosRotatingFileHandler) and getattr(h, 'baseFilename', None) == os.path.abspath(log_file):
+            handler = h
+            break
+            
+    if handler is None:
+        handler = PhosRotatingFileHandler(
+            log_file,
+            max_bytes=max_bytes,
+            max_lines=max_lines,
+            max_hours=max_hours,
+            backupCount=backup_count,
+            encoding='utf-8'
+        )
+        handler.setLevel(logging.INFO)
+        fmt = logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s')
+        handler.setFormatter(fmt)
+        root_logger.addHandler(handler)
+    else:
+        # Update existing
+        handler.max_lines = max_lines
+        handler.max_bytes = max_bytes
+        handler.max_hours = max_hours
+        handler.backupCount = backup_count
+
+
+# def file_md5(path):
+#     h = hashlib.md5()
+#     try:
+#         with open(path, 'rb') as f:
+#             for chunk in iter(lambda: f.read(8192), b''):
+#                 h.update(chunk)
+#         return h.hexdigest()
+#     except Exception:
+#         return None
+
+def file_sha256(path):
+    h = hashlib.sha256()
+    try:
+        with open(path, 'rb') as f:
+            for chunk in iter(lambda: f.read(8192), b''):
+                h.update(chunk)
+        return h.hexdigest()
+    except Exception:
+        return None
+
+def is_same_file_content(path1, path2):
+    if not os.path.exists(path1) or not os.path.exists(path2):
+        return False
+    try:
+        if os.path.getsize(path1) != os.path.getsize(path2):
+            return False
+        return file_sha256(path1) == file_sha256(path2)
+    except Exception:
+        return False
+
+
+def get_unique_output_path(src: str, out: str, is_rename_only: bool) -> str:
+    if not os.path.exists(out):
+        return out
+    
+    if is_rename_only:
+        if is_same_file_content(src, out):
+            return out
+    else:
+        # For conversion, if output exists and is newer than or equal to source,
+        # it is considered already converted.
+        if os.path.getmtime(out) >= os.path.getmtime(src):
+            return out
+            
+    # Generate unique suffix _n
+    base_dir = os.path.dirname(out)
+    from pathlib import Path
+    p = Path(out)
+    stem = p.stem
+    suffix = p.suffix
+    
+    n = 1
+    while True:
+        candidate = os.path.join(base_dir, f"{stem}_{n}{suffix}")
+        if not os.path.exists(candidate):
+            return candidate
+        if is_rename_only:
+            if is_same_file_content(src, candidate):
+                return candidate
+        else:
+            if os.path.getmtime(candidate) >= os.path.getmtime(src):
+                return candidate
+        n += 1
 
 
 def load_config(path='config.yaml'):
@@ -193,10 +379,24 @@ def process_item(item, cfg):
     target_format = str(cfg.get('target_format', 'jpg') or 'jpg').strip().lstrip('.') or 'jpg'
     out = rules.normalize_output_path(src, target_format)
     
-    if src == out:
+    is_rename = _should_rename_only(src, target_format, cfg)
+    unique_out = get_unique_output_path(src, out, is_rename)
+
+    if src == unique_out:
         logger.info('File %s is already in target format and case-normalized', src)
         return True
 
+    if os.path.exists(unique_out):
+        if is_rename:
+            if os.path.normcase(src) != os.path.normcase(unique_out) and is_same_file_content(src, unique_out):
+                logger.info('File %s is already renamed/present as %s', src, unique_out)
+                return True
+        else:
+            if os.path.getmtime(unique_out) >= os.path.getmtime(src):
+                logger.info('File %s is already converted/present as %s', src, unique_out)
+                return True
+
+    out = unique_out
     out_dir = os.path.dirname(out)
     os.makedirs(out_dir, exist_ok=True)
 
@@ -245,14 +445,8 @@ def process_item(item, cfg):
 def run_worker(poll_interval=1):
     # configure logging: console + file so web UI can tail the file
     logging.basicConfig(level=logging.INFO)
-    log_file = os.getenv('PHOS_LOG_FILE', 'phos_watch.log')
-    # avoid adding multiple handlers if run multiple times
-    if not any(isinstance(h, logging.FileHandler) and getattr(h, 'baseFilename', None) == os.path.abspath(log_file) for h in logging.getLogger().handlers):
-        fh = logging.FileHandler(log_file, encoding='utf-8')
-        fh.setLevel(logging.INFO)
-        fmt = logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s')
-        fh.setFormatter(fmt)
-        logging.getLogger().addHandler(fh)
+    cfg = load_config()
+    setup_phos_logging(cfg)
     # try to start watchdog (optional)
     try:
         _observer = start_config_watchdog()
@@ -263,6 +457,7 @@ def run_worker(poll_interval=1):
         try:
             control.update_status('worker', 'normal')
             cfg = load_config_if_changed()
+            setup_phos_logging(cfg)
             if control.is_paused():
                 logger.info('Worker paused; sleeping %s seconds', poll_interval)
                 time.sleep(poll_interval)
@@ -277,6 +472,8 @@ def run_worker(poll_interval=1):
                             src_path = item.get('path')
                             target_format = str(cfg.get('target_format', 'jpg') or 'jpg').strip().lstrip('.') or 'jpg'
                             out_path = rules.normalize_output_path(src_path, target_format)
+                            is_rename = _should_rename_only(src_path, target_format, cfg)
+                            out_path = get_unique_output_path(src_path, out_path, is_rename)
                             
                             # Only delete/archive if it is a different file on disk
                             if os.path.normcase(src_path) != os.path.normcase(out_path):

@@ -64,5 +64,12 @@
   "scheme_name_placeholder": "Scheme name (e.g. Mobile Photos)",
   "scheme_sources_placeholder": "Source suffixes, comma-separated, e.g. heic,heif",
   "alias_canonical_placeholder": "Canonical suffix, e.g. jpg",
-  "alias_values_placeholder": "Aliases, comma-separated, e.g. jpeg,JPG,JPEG"
+  "alias_values_placeholder": "Aliases, comma-separated, e.g. jpeg,JPG,JPEG",
+  "module_log_title": "4) Log Retention and Rotation",
+  "module_log_desc": "Set thresholds for log files. Logs will automatically rotate when thresholds are exceeded.",
+  "log_max_lines_label": "Max Lines (0 for unlimited)",
+  "log_max_size_kb_label": "Max Size (KB, 0 for unlimited)",
+  "log_max_hours_label": "Max Hours (0 for unlimited)",
+  "log_backup_count_label": "Backup File Count",
+  "invalid_path_error": "Path contains illegal characters, please try again!"
 }

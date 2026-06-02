@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 import asyncio
 import logging
 import yaml
+import os
 
 import phos_queue as q
 import control
@@ -13,8 +14,10 @@ app = FastAPI()
 logger = logging.getLogger('phos-watch-web')
 LOGFILE = 'phos_watch.log'
 
-with open(LOGFILE, 'w', encoding='utf-8') as f:
-    pass
+# Check if log file exists, if not create it. Avoid truncating to preserve log history/rotation.
+if not os.path.exists(LOGFILE):
+    with open(LOGFILE, 'w', encoding='utf-8') as f:
+        pass
 
 # serve static files (locales will live under static/locales)
 app.mount('/static', StaticFiles(directory='static'), name='static')
@@ -70,21 +73,31 @@ async def post_config(req: Request):
 
             # watch_paths: allow legacy list of strings -> convert to list of objects
             wp = migrated.get('watch_paths', []) or []
+            new_wp = []
             if isinstance(wp, list) and wp and all(isinstance(x, str) for x in wp):
                 # legacy: single global recursive flag may exist
                 global_recursive = bool(migrated.get('recursive', False))
-                migrated['watch_paths'] = [{'path': p, 'recursive': global_recursive} for p in wp]
+                new_wp = [{'path': p.strip().strip("'\"").strip(), 'recursive': global_recursive} for p in wp if p]
             else:
                 # ensure list of objects with path and recursive
-                new_wp = []
                 if isinstance(wp, list):
                     for item in wp:
                         if isinstance(item, str):
-                            new_wp.append({'path': item, 'recursive': False})
+                            clean_p = item.strip().strip("'\"").strip()
+                            if clean_p:
+                                new_wp.append({'path': clean_p, 'recursive': False})
                         elif isinstance(item, dict):
                             path = item.get('path') or item.get('watch_path') or ''
-                            new_wp.append({'path': path, 'recursive': bool(item.get('recursive', False))})
-                migrated['watch_paths'] = new_wp
+                            clean_p = path.strip().strip("'\"").strip()
+                            if clean_p:
+                                new_wp.append({'path': clean_p, 'recursive': bool(item.get('recursive', False))})
+            migrated['watch_paths'] = new_wp
+
+            # validate watch paths for invalid characters
+            for entry in new_wp:
+                p_val = entry['path']
+                if any(c in p_val for c in ['<', '>', '|', '?', '*'] if c):
+                    return False, f"Invalid path contains illegal characters: {p_val}"
 
             # source_extensions: normalize to list of lowercase suffixes
             se = migrated.get('source_extensions')
@@ -144,6 +157,27 @@ async def post_config(req: Request):
                 migrated['extension_aliases'] = ea
             else:
                 migrated['extension_aliases'] = {}
+
+            # log settings validation and normalization
+            try:
+                migrated['log_max_lines'] = max(0, int(cfg.get('log_max_lines', 0)))
+            except (ValueError, TypeError):
+                migrated['log_max_lines'] = 0
+
+            try:
+                migrated['log_max_size_kb'] = max(0.0, float(cfg.get('log_max_size_kb', 0.0)))
+            except (ValueError, TypeError):
+                migrated['log_max_size_kb'] = 0.0
+
+            try:
+                migrated['log_max_hours'] = max(0.0, float(cfg.get('log_max_hours', 0.0)))
+            except (ValueError, TypeError):
+                migrated['log_max_hours'] = 0.0
+
+            try:
+                migrated['log_backup_count'] = max(0, int(cfg.get('log_backup_count', 5)))
+            except (ValueError, TypeError):
+                migrated['log_backup_count'] = 5
 
             return True, migrated
 
@@ -218,6 +252,17 @@ async def websocket_logs(ws: WebSocket):
                 line = f.readline()
                 if not line:
                     await asyncio.sleep(0.5)
+                    # Check if file was rotated
+                    try:
+                        if os.path.exists(LOGFILE):
+                            stat_path = os.stat(LOGFILE)
+                            stat_fd = os.stat(f.fileno())
+                            if stat_path.st_ino != stat_fd.st_ino or stat_path.st_dev != stat_fd.st_dev:
+                                f.close()
+                                f = open(LOGFILE, 'r', encoding='utf-8')
+                                continue
+                    except Exception:
+                        pass
                     f.seek(where)
                     continue
                 await ws.send_text(line.rstrip('\n'))
@@ -239,7 +284,7 @@ async def index():
                 .card { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; box-shadow: 0 4px 16px rgba(0,0,0,.04); }
                 .muted { color: #6b7280; }
                 pre, textarea, input, select { width: 100%; box-sizing: border-box; }
-                pre { background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 10px; min-height: 120px; overflow: auto; }
+                pre { background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 10px; min-height: 120px; max-height: 400px; overflow-y: auto; }
                 textarea { min-height: 240px; font-family: Consolas, monospace; border-radius: 10px; border: 1px solid #cbd5e1; padding: 12px; }
                 input, select { border-radius: 10px; border: 1px solid #cbd5e1; padding: 10px 12px; }
                 button { border: 0; background: #2563eb; color: white; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
@@ -338,6 +383,29 @@ async def index():
                                 <input type="text" id="alias_canonical" data-i18n-placeholder="alias_canonical_placeholder" placeholder="標準副檔名，例如 jpg" />
                                 <input type="text" id="alias_values" data-i18n-placeholder="alias_values_placeholder" placeholder="別名，逗號分隔，例如 jpeg,JPG,JPEG" />
                                 <button type="button" id="alias_add" class="secondary" data-i18n="add_item">新增</button>
+                            </div>
+                        </div>
+
+                        <div class="module">
+                            <h4 data-i18n="module_log_title">4) 日誌備份與輪轉設定</h4>
+                            <div class="field-help" data-i18n="module_log_desc">設定日誌檔案的保留上限，若超過限制將會自動輪轉備份。</div>
+                            <div class="row" style="margin-top:8px; display: flex; gap: 16px; flex-wrap: wrap;">
+                                <div class="field" style="flex: 1 1 180px;">
+                                    <label for="log_max_lines" data-i18n="log_max_lines_label">最大行數 (0表示不限制)</label>
+                                    <input type="number" id="log_max_lines" min="0" placeholder="例如：10000" />
+                                </div>
+                                <div class="field" style="flex: 1 1 180px;">
+                                    <label for="log_max_size_kb" data-i18n="log_max_size_kb_label">最大大小 (KB, 0表示不限制)</label>
+                                    <input type="number" id="log_max_size_kb" min="0" placeholder="例如：1024" />
+                                </div>
+                                <div class="field" style="flex: 1 1 180px;">
+                                    <label for="log_max_hours" data-i18n="log_max_hours_label">最大時間 (小時, 0表示不限制)</label>
+                                    <input type="number" id="log_max_hours" min="0" step="0.5" placeholder="例如：24" />
+                                </div>
+                                <div class="field" style="flex: 1 1 180px;">
+                                    <label for="log_backup_count" data-i18n="log_backup_count_label">保留備份檔個數</label>
+                                    <input type="number" id="log_backup_count" min="0" placeholder="例如：5" />
+                                </div>
                             </div>
                         </div>
 
@@ -769,6 +837,16 @@ async def index():
                         renderWatchPaths(normalizeWatchPaths(j));
                         renderSchemes(normalizeSchemes(j));
                         renderAliases(normalizeAliases(j));
+
+                        // Load log settings
+                        const lLines = document.getElementById('log_max_lines');
+                        if (lLines) lLines.value = j.log_max_lines !== undefined ? j.log_max_lines : 0;
+                        const lSize = document.getElementById('log_max_size_kb');
+                        if (lSize) lSize.value = j.log_max_size_kb !== undefined ? j.log_max_size_kb : 0;
+                        const lHours = document.getElementById('log_max_hours');
+                        if (lHours) lHours.value = j.log_max_hours !== undefined ? j.log_max_hours : 0;
+                        const lBackup = document.getElementById('log_backup_count');
+                        if (lBackup) lBackup.value = j.log_backup_count !== undefined ? j.log_backup_count : 5;
                     } catch (e) { console.error(e); }
                 }
 
@@ -968,6 +1046,12 @@ async def index():
                         cfg.conversion_schemes = getSchemes();
                         cfg.extension_aliases = getAliases();
 
+                        // Save log settings
+                        cfg.log_max_lines = parseInt(document.getElementById('log_max_lines')?.value || '0', 10);
+                        cfg.log_max_size_kb = parseFloat(document.getElementById('log_max_size_kb')?.value || '0');
+                        cfg.log_max_hours = parseFloat(document.getElementById('log_max_hours')?.value || '0');
+                        cfg.log_backup_count = parseInt(document.getElementById('log_backup_count')?.value || '5', 10);
+
                         // Backward-compatible fields for current worker logic
                         const active = cfg.conversion_schemes.find(sc => sc.enabled !== false) || cfg.conversion_schemes[0] || null;
                         cfg.source_extensions = active ? (active.source_extensions || []) : [];
@@ -1007,8 +1091,18 @@ async def index():
                     const aliasBtn = document.getElementById('alias_add');
 
                     if (watchBtn) watchBtn.addEventListener('click', () => {
-                        const path = String(watchInput && watchInput.value || '').trim();
+                        let path = String(watchInput && watchInput.value || '').trim();
+                        // Auto-correct: strip leading/trailing quotes
+                        path = path.replace(/^["']|["']$/g, '').trim();
                         if (!path) return;
+
+                        // Validate path characters
+                        const illegalChars = /[<>|?*"]/;
+                        if (illegalChars.test(path)) {
+                            showToast(t('invalid_path_error'), true);
+                            return;
+                        }
+
                         const next = getWatchPaths();
                         if (!next.some(x => x.path === path)) {
                             next.push({ path, recursive: !!(watchRecursive && watchRecursive.checked) });

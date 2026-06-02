@@ -140,26 +140,53 @@ def start_watcher_loop(config_path='config.yaml'):
                     logger.info('Watch paths changed or initialized. Updating observer...')
                     if observer:
                         logger.info('Stopping old observer...')
-                        observer.stop()
-                        observer.join()
+                        try:
+                            observer.stop()
+                            observer.join()
+                        except RuntimeError:
+                            pass
                         observer = None
                     
                     if normalized_paths:
-                        observer = Observer()
+                        new_observer = Observer()
+                        scheduled_count = 0
                         for entry in normalized_paths:
                             path = entry['path']
                             recursive = entry['recursive']
-                            if not os.path.exists(path):
-                                os.makedirs(path, exist_ok=True)
-                            handler = _Handler(path)
-                            observer.schedule(handler, path=path, recursive=recursive)
-                            logger.info('Watching path=%s recursive=%s', path, recursive)
-                        observer.start()
+                            try:
+                                if not os.path.exists(path):
+                                    os.makedirs(path, exist_ok=True)
+                                handler = _Handler(path)
+                                new_observer.schedule(handler, path=path, recursive=recursive)
+                                scheduled_count += 1
+                                logger.info('Watching path=%s recursive=%s', path, recursive)
+                            except Exception as pe:
+                                logger.exception('Failed to setup watch path %s: %s', path, pe)
                         
-                        # Perform initial scan of the directories
-                        for entry in normalized_paths:
-                            logger.info('Performing initial scan of %s...', entry['path'])
-                            _scan_and_enqueue(entry['path'], entry['recursive'], cfg)
+                        if scheduled_count > 0:
+                            try:
+                                new_observer.start()
+                                observer = new_observer
+                                
+                                # Perform initial scan of the directories
+                                for entry in normalized_paths:
+                                    try:
+                                        if os.path.exists(entry['path']):
+                                            logger.info('Performing initial scan of %s...', entry['path'])
+                                            _scan_and_enqueue(entry['path'], entry['recursive'], cfg)
+                                    except Exception:
+                                        logger.exception('Failed during initial scan of %s', entry['path'])
+                            except Exception as se:
+                                logger.exception('Failed to start observer: %s', se)
+                                try:
+                                    new_observer.stop()
+                                except Exception:
+                                    pass
+                                observer = None
+                                raise se
+                        else:
+                            observer = None
+                            logger.error('No watch paths could be scheduled.')
                     
                     last_paths = normalized_paths
                 last_mtime = mtime

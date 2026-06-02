@@ -124,3 +124,53 @@ def test_run_worker_deletes_original_on_different_format(tmp_path, monkeypatch):
     assert not os.path.exists(src_path)
     assert out_path.exists()
 
+
+def test_get_unique_output_path_collision(tmp_path):
+    import logging
+    import os
+    import time
+    src = tmp_path / "image.heic"
+    src.write_bytes(b"heic-data")
+    
+    out = tmp_path / "image.jpg"
+    out.write_bytes(b"jpg-original-content")
+    os.utime(str(out), (time.time() - 10, time.time() - 10))
+    
+    # First candidate collision
+    res1 = worker.get_unique_output_path(str(src), str(out), is_rename_only=False)
+    assert Path(res1).name == "image_1.jpg"
+    
+    # Write to image_1.jpg to create a second collision
+    Path(res1).write_bytes(b"jpg-second-content")
+    os.utime(res1, (time.time() - 10, time.time() - 10))
+    res2 = worker.get_unique_output_path(str(src), str(out), is_rename_only=False)
+    assert Path(res2).name == "image_2.jpg"
+
+
+def test_phos_log_rotation_by_lines(tmp_path):
+    import logging
+    log_file = tmp_path / "test_rotate.log"
+    # Create custom rotating handler with limit 3 lines
+    handler = worker.PhosRotatingFileHandler(str(log_file), max_lines=3, backupCount=2)
+    
+    logger_test = logging.getLogger("test_rot_lines")
+    logger_test.setLevel(logging.INFO)
+    logger_test.addHandler(handler)
+    
+    logger_test.info("line 1")
+    logger_test.info("line 2")
+    logger_test.info("line 3")
+    
+    assert log_file.exists()
+    # Trigger rotation on 4th write
+    logger_test.info("line 4")
+    
+    # Check that rotation occurred
+    rotated_file = tmp_path / "test_rotate.log.1"
+    assert rotated_file.exists()
+    
+    # Clean up handler
+    logger_test.removeHandler(handler)
+    handler.close()
+
+
