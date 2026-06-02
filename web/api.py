@@ -244,30 +244,41 @@ async def websocket_logs(ws: WebSocket):
         for line in lines:
             await ws.send_text(line.rstrip('\n'))
 
-        f = open(LOGFILE, 'r', encoding='utf-8')
-        f.seek(0, 2)
-        try:
-            while True:
-                where = f.tell()
-                line = f.readline()
-                if not line:
-                    await asyncio.sleep(0.5)
-                    # Check if file was rotated
-                    try:
-                        if os.path.exists(LOGFILE):
-                            stat_path = os.stat(LOGFILE)
-                            stat_fd = os.stat(f.fileno())
-                            if stat_path.st_ino != stat_fd.st_ino or stat_path.st_dev != stat_fd.st_dev:
-                                f.close()
-                                f = open(LOGFILE, 'r', encoding='utf-8')
-                                continue
-                    except Exception:
-                        pass
-                    f.seek(where)
-                    continue
-                await ws.send_text(line.rstrip('\n'))
-        finally:
-            f.close()
+        last_pos = 0
+        last_ino = None
+        last_dev = None
+
+        if os.path.exists(LOGFILE):
+            try:
+                st = os.stat(LOGFILE)
+                last_ino = st.st_ino
+                last_dev = st.st_dev
+                last_pos = st.st_size
+            except Exception:
+                pass
+
+        while True:
+            await asyncio.sleep(0.5)
+            if not os.path.exists(LOGFILE):
+                continue
+
+            try:
+                st = os.stat(LOGFILE)
+                if st.st_ino != last_ino or st.st_dev != last_dev:
+                    last_ino = st.st_ino
+                    last_dev = st.st_dev
+                    last_pos = 0
+
+                with open(LOGFILE, 'r', encoding='utf-8') as f:
+                    f.seek(last_pos)
+                    while True:
+                        line = f.readline()
+                        if not line:
+                            last_pos = f.tell()
+                            break
+                        await ws.send_text(line.rstrip('\n'))
+            except Exception:
+                pass
     except WebSocketDisconnect:
         pass
 

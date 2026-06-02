@@ -22,6 +22,7 @@ class PhosRotatingFileHandler(BaseRotatingHandler):
         self.max_hours = max_hours
         self.backupCount = backupCount
         self.last_rotation_time = time.time()
+        self.last_failed_rotation_time = 0.0
         self.line_count = 0
         if os.path.exists(filename):
             self.last_rotation_time = os.path.getmtime(filename)
@@ -36,6 +37,11 @@ class PhosRotatingFileHandler(BaseRotatingHandler):
             self.line_count = 0
 
     def shouldRollover(self, record):
+        # If rotation failed recently, don't try again immediately to avoid blocking
+        if getattr(self, 'last_failed_rotation_time', 0.0) > 0.0:
+            if time.time() - self.last_failed_rotation_time < 5.0:
+                return False
+
         if self.stream is None:
             self.stream = self._open()
         
@@ -66,19 +72,62 @@ class PhosRotatingFileHandler(BaseRotatingHandler):
         if self.stream:
             self.stream.close()
             self.stream = None
-        if self.backupCount > 0:
-            for i in range(self.backupCount - 1, 0, -1):
-                sfn = self.rotation_filename(f"{self.baseFilename}.{i}")
-                dfn = self.rotation_filename(f"{self.baseFilename}.{i+1}")
-                if os.path.exists(sfn):
-                    if os.path.exists(dfn):
-                        os.remove(dfn)
-                    os.rename(sfn, dfn)
-            dfn = self.rotation_filename(f"{self.baseFilename}.1")
-            if os.path.exists(dfn):
-                os.remove(dfn)
-            if os.path.exists(self.baseFilename):
-                os.rename(self.baseFilename, dfn)
+
+        success = True
+        try:
+            if self.backupCount > 0:
+                for i in range(self.backupCount - 1, 0, -1):
+                    sfn = self.rotation_filename(f"{self.baseFilename}.{i}")
+                    dfn = self.rotation_filename(f"{self.baseFilename}.{i+1}")
+                    if os.path.exists(sfn):
+                        if os.path.exists(dfn):
+                            for _ in range(5):
+                                try:
+                                    os.remove(dfn)
+                                    break
+                                except PermissionError:
+                                    time.sleep(0.1)
+                        rename_ok = False
+                        for _ in range(5):
+                            try:
+                                os.rename(sfn, dfn)
+                                rename_ok = True
+                                break
+                            except PermissionError:
+                                time.sleep(0.1)
+                        if not rename_ok:
+                            success = False
+
+                dfn = self.rotation_filename(f"{self.baseFilename}.1")
+                if os.path.exists(dfn):
+                    for _ in range(5):
+                        try:
+                            os.remove(dfn)
+                            break
+                        except PermissionError:
+                            time.sleep(0.1)
+
+                if os.path.exists(self.baseFilename):
+                    rename_ok = False
+                    for _ in range(5):
+                        try:
+                            os.rename(self.baseFilename, dfn)
+                            rename_ok = True
+                            break
+                        except PermissionError:
+                            time.sleep(0.1)
+                    if not rename_ok:
+                        success = False
+        except Exception as e:
+            import sys
+            sys.stderr.write(f"Error during log rollover: {e}\n")
+            success = False
+
+        if not success:
+            self.last_failed_rotation_time = time.time()
+        else:
+            self.last_failed_rotation_time = 0.0
+
         self.last_rotation_time = time.time()
         self.line_count = 0
         if not self.delay:
