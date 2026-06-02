@@ -3,6 +3,7 @@ import time
 import logging
 import subprocess
 import shutil
+from pathlib import Path
 import phos_queue as q
 import control
 import rules
@@ -488,6 +489,19 @@ def run_worker(poll_interval=1):
                                     if os.path.exists(src_path):
                                         shutil.move(src_path, os.path.join(archive_dir, basename))
                                         logger.info('Archived original file %s to %s', src_path, archive_dir)
+                                else:
+                                    # Normalize original file's extension case/alias if delete_original is False
+                                    if os.path.exists(src_path):
+                                        src_ext = _normalize_ext(os.path.splitext(src_path)[1])
+                                        ext_map = _build_extension_map(cfg)
+                                        canonical_ext = _resolve_extension(src_ext, ext_map)
+                                        if canonical_ext:
+                                            src_dir = os.path.dirname(src_path)
+                                            src_stem = Path(src_path).stem
+                                            normalized_src_path = os.path.join(src_dir, f"{src_stem}.{canonical_ext}")
+                                            if src_path != normalized_src_path:
+                                                _rename_output_path(src_path, normalized_src_path)
+                                                logger.info('Normalized original file extension: %s -> %s', src_path, normalized_src_path)
                         except Exception:
                             logger.exception('Failed post-processing on %s', item.get('path'))
                 except Exception:

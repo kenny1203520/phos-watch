@@ -174,3 +174,50 @@ def test_phos_log_rotation_by_lines(tmp_path):
     handler.close()
 
 
+def test_original_file_normalization_on_keep(tmp_path):
+    import logging
+    import os
+    from PIL import Image
+
+    cfg = {
+        'target_format': 'jpg',
+        'delete_original': False,
+        'extension_aliases': {'jpg': ['jpg', 'jpeg', 'JPG', 'JPEG'], 'png': ['png', 'PNG']}
+    }
+    
+    src = tmp_path / "photo.PNG"
+    Image.new('RGB', (8, 8)).save(src)
+    
+    item = {'path': str(src)}
+    success = worker.process_item(item, cfg)
+    assert success is True
+    
+    src_path = str(src)
+    out_path = worker.rules.normalize_output_path(src_path, 'jpg')
+    is_rename = worker._should_rename_only(src_path, 'jpg', cfg)
+    out_path = worker.get_unique_output_path(src_path, out_path, is_rename)
+    
+    if os.path.normcase(src_path) != os.path.normcase(out_path):
+        if not cfg.get('delete_original') and not cfg.get('archive_dir'):
+            if os.path.exists(src_path):
+                src_ext = worker._normalize_ext(os.path.splitext(src_path)[1])
+                ext_map = worker._build_extension_map(cfg)
+                canonical_ext = worker._resolve_extension(src_ext, ext_map)
+                if canonical_ext:
+                    src_dir = os.path.dirname(src_path)
+                    src_stem = Path(src_path).stem
+                    normalized_src_path = os.path.join(src_dir, f"{src_stem}.{canonical_ext}")
+                    if src_path != normalized_src_path:
+                        worker._rename_output_path(src_path, normalized_src_path)
+                        
+    expected_png = tmp_path / "photo.png"
+    expected_jpg = tmp_path / "photo.jpg"
+    
+    # Case-sensitive check in directory listing
+    filenames = os.listdir(tmp_path)
+    assert "photo.png" in filenames
+    assert "photo.jpg" in filenames
+    assert "photo.PNG" not in filenames
+
+
+
