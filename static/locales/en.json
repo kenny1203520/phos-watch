@@ -71,5 +71,10 @@
   "log_max_size_kb_label": "Max Size (KB, 0 for unlimited)",
   "log_max_hours_label": "Max Hours (0 for unlimited)",
   "log_backup_count_label": "Backup File Count",
-  "invalid_path_error": "Path contains illegal characters, please try again!"
+  "invalid_path_error": "Path contains illegal characters, please try again!",
+  "enable_module": "Enable this module",
+  "scheme_sources_custom_placeholder": "Custom other extensions, comma-separated, e.g. raw",
+  "custom_ext_warning": "⚠️ Hint: Custom extensions might not be supported. Use only compatible formats.",
+  "enable_conversion_schemes_label": "Enable Conversion Schemes",
+  "enable_extension_aliases_label": "Enable Extension Normalization"
 }

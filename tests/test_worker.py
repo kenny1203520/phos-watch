@@ -220,4 +220,116 @@ def test_original_file_normalization_on_keep(tmp_path):
     assert "photo.PNG" not in filenames
 
 
+def test_multi_scheme_matching(tmp_path, monkeypatch):
+    # Setup files: in1.heic and in2.PNG
+    src1 = tmp_path / "in1.heic"
+    src1.write_bytes(b"heic-data")
+    
+    src2 = tmp_path / "in2.PNG"
+    from PIL import Image
+    Image.new('RGB', (8, 8)).save(src2)
+
+    monkeypatch.setattr(worker, '_find_imagemagick_command', lambda: None)
+
+    # Mock PIL Image.open to handle fake HEIC
+    class FakeImage:
+        def __enter__(self):
+            return self
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+        def convert(self, mode):
+            return self
+        def save(self, out, **kwargs):
+            # Create the output file to simulate successful conversion
+            with open(out, 'wb') as f:
+                f.write(b"fake-converted-image")
+
+    original_open = Image.open
+    def mock_open(path, *args, **kwargs):
+        if str(path).endswith('.heic'):
+            return FakeImage()
+        return original_open(path, *args, **kwargs)
+        
+    monkeypatch.setattr(Image, 'open', mock_open)
+
+    cfg = {
+        'enable_conversion_schemes': True,
+        'enable_extension_aliases': True,
+        'extension_aliases': {
+            'heic': ['heic', 'HEIC'],
+            'png': ['png', 'PNG']
+        },
+        'conversion_schemes': [
+            {
+                'name': 'heic-to-jpg',
+                'source_extensions': ['heic'],
+                'target_format': 'jpg',
+                'delete_original': True,
+                'enabled': True
+            },
+            {
+                'name': 'png-to-webp',
+                'source_extensions': ['png'],
+                'target_format': 'webp',
+                'delete_original': False,
+                'enabled': True
+            }
+        ]
+    }
+
+    # Process first item (in1.heic -> should convert to in1.jpg and delete original)
+    success1 = worker.process_item({'path': str(src1)}, cfg)
+    assert success1 is True
+    assert (tmp_path / "in1.jpg").exists()
+    assert not src1.exists()
+
+    # Process second item (in2.PNG -> should convert to in2.webp and rename original to in2.png)
+    success2 = worker.process_item({'path': str(src2)}, cfg)
+    assert success2 is True
+    assert (tmp_path / "in2.webp").exists()
+    filenames = os.listdir(tmp_path)
+    assert "in2.png" in filenames
+    assert "in2.PNG" not in filenames
+
+
+def test_module_toggles_disabled(tmp_path, monkeypatch):
+    # 1. Test when enable_conversion_schemes is False but enable_extension_aliases is True
+    src1 = tmp_path / "photo.JPEG"
+    src1.write_bytes(b"dummy jpeg")
+    
+    cfg = {
+        'enable_conversion_schemes': False,
+        'enable_extension_aliases': True,
+        'extension_aliases': {
+            'jpg': ['jpg', 'jpeg', 'JPG', 'JPEG']
+        },
+        'conversion_schemes': [
+            {
+                'name': 'jpg-to-png',
+                'source_extensions': ['jpg'],
+                'target_format': 'png',
+                'delete_original': True,
+                'enabled': True
+            }
+        ]
+    }
+    
+    success1 = worker.process_item({'path': str(src1)}, cfg)
+    assert success1 is True
+    assert not (tmp_path / "photo.png").exists()
+    assert (tmp_path / "photo.jpg").exists()
+    assert not src1.exists()
+
+    # 2. Test when both enable_conversion_schemes and enable_extension_aliases are False
+    src2 = tmp_path / "photo2.JPEG"
+    src2.write_bytes(b"dummy jpeg 2")
+
+    cfg['enable_extension_aliases'] = False
+    
+    success2 = worker.process_item({'path': str(src2)}, cfg)
+    assert success2 is False or not (tmp_path / "photo2.jpg").exists()
+    assert src2.exists()
+
+
+
 

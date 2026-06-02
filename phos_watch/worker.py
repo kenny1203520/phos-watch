@@ -397,29 +397,67 @@ def _rename_output_path(src: str, out: str):
     os.replace(src, out)
 
 
+def find_matching_scheme(src_path: str, cfg: dict):
+    if not cfg.get('enable_conversion_schemes', True):
+        return None
+
+    schemes = cfg.get('conversion_schemes', []) or []
+    src_ext = _normalize_ext(os.path.splitext(src_path)[1])
+    if not src_ext:
+        return None
+
+    # Build alias map if aliases are enabled
+    ext_map = {}
+    if cfg.get('enable_extension_aliases', True):
+        ext_map = _build_extension_map(cfg)
+
+    resolved_src_ext = _resolve_extension(src_ext, ext_map)
+
+    if not schemes:
+        # fallback to legacy config structure if no schemes list is present
+        legacy_src = cfg.get('source_extensions')
+        if legacy_src is None:
+            sc_srcs = [resolved_src_ext]
+        elif isinstance(legacy_src, list):
+            sc_srcs = legacy_src
+            if not sc_srcs:
+                sc_srcs = [resolved_src_ext]
+        elif isinstance(legacy_src, str):
+            sc_srcs = [x.strip() for x in legacy_src.split(',') if x.strip()]
+            if not sc_srcs:
+                sc_srcs = [resolved_src_ext]
+        else:
+            sc_srcs = [resolved_src_ext]
+
+        schemes = [{
+            'name': 'legacy-fallback',
+            'source_extensions': sc_srcs,
+            'target_format': cfg.get('target_format', 'jpg'),
+            'delete_original': cfg.get('delete_original', False),
+            'enabled': True
+        }]
+
+    for sc in schemes:
+        if not sc.get('enabled', True):
+            continue
+
+        sc_allowed = sc.get('source_extensions', []) or []
+        if isinstance(sc_allowed, str):
+            sc_allowed = [x.strip() for x in sc_allowed.split(',') if x.strip()]
+
+        resolved_allowed = set()
+        for item in sc_allowed:
+            resolved_allowed.add(_resolve_extension(_normalize_ext(item), ext_map))
+
+        if resolved_src_ext in resolved_allowed:
+            return sc
+
+    return None
+
+
 def _source_extension_allowed(path: str, cfg) -> bool:
-    allowed = cfg.get('source_extensions')
-    aliases = cfg.get('extension_aliases', {}) or {}
-
-    ext = _normalize_ext(os.path.splitext(path)[1])
-    if not ext:
-        return False
-
-    normalized_allowed = set()
-    if isinstance(allowed, list):
-        normalized_allowed.update(_normalize_ext(item) for item in allowed)
-    elif isinstance(allowed, str):
-        normalized_allowed.update(_normalize_ext(item) for item in allowed.split(','))
-
-    for canonical, alias_list in aliases.items():
-        normalized_allowed.add(_normalize_ext(canonical))
-        if isinstance(alias_list, list):
-            normalized_allowed.update(_normalize_ext(item) for item in alias_list)
-
-    if not normalized_allowed:
-        return True
-
-    return ext in normalized_allowed
+    sc = find_matching_scheme(path, cfg)
+    return sc is not None
 
 
 def process_item(item, cfg):
@@ -428,74 +466,135 @@ def process_item(item, cfg):
         logger.warning('Empty item received: %s', item)
         return False
 
-    if not _source_extension_allowed(src, cfg):
-        logger.info('Skipping unsupported source extension: %s', src)
+    if not os.path.exists(src):
+        logger.warning('Source file does not exist: %s', src)
         return False
 
-    target_format = str(cfg.get('target_format', 'jpg') or 'jpg').strip().lstrip('.') or 'jpg'
-    out = rules.normalize_output_path(src, target_format)
-    
-    is_rename = _should_rename_only(src, target_format, cfg)
-    unique_out = get_unique_output_path(src, out, is_rename)
+    enable_conversion = cfg.get('enable_conversion_schemes', True)
+    enable_aliases = cfg.get('enable_extension_aliases', True)
+    ext_map = _build_extension_map(cfg) if enable_aliases else {}
 
-    if src == unique_out:
-        logger.info('File %s is already in target format and case-normalized', src)
+    matched_scheme = find_matching_scheme(src, cfg)
+
+    if matched_scheme:
+        target_format = str(matched_scheme.get('target_format', 'jpg') or 'jpg').strip().lstrip('.') or 'jpg'
+        delete_original = bool(matched_scheme.get('delete_original', False))
+
+        out = rules.normalize_output_path(src, target_format)
+
+        src_ext = _normalize_ext(os.path.splitext(src)[1])
+        if enable_aliases:
+            is_rename = (_resolve_extension(src_ext, ext_map) == _resolve_extension(target_format, ext_map))
+        else:
+            is_rename = (src_ext == _normalize_ext(target_format))
+
+        unique_out = get_unique_output_path(src, out, is_rename)
+
+        if src == unique_out:
+            logger.info('File %s is already in target format and case-normalized', src)
+            return True
+
+        if os.path.exists(unique_out):
+            if is_rename:
+                if os.path.normcase(src) != os.path.normcase(unique_out) and is_same_file_content(src, unique_out):
+                    logger.info('File %s is already renamed/present as %s', src, unique_out)
+                    return True
+            else:
+                if os.path.getmtime(unique_out) >= os.path.getmtime(src):
+                    logger.info('File %s is already converted/present as %s', src, unique_out)
+                    return True
+
+        out = unique_out
+        out_dir = os.path.dirname(out)
+        os.makedirs(out_dir, exist_ok=True)
+
+        max_retries = int(cfg.get('max_retries', 3))
+        backoff = float(cfg.get('retry_backoff', 1.0))
+
+        success = False
+        for attempt in range(1, max_retries + 1):
+            try:
+                if not os.path.exists(src):
+                    logger.warning('Source file does not exist during processing: %s', src)
+                    return False
+
+                if is_rename:
+                    _rename_output_path(src, out)
+                    logger.info('Renamed %s -> %s', src, out)
+                    success = True
+                    break
+
+                cmd_base = _find_imagemagick_command()
+                success_magick = False
+                if cmd_base:
+                    try:
+                        cmd = [cmd_base, src, out]
+                        subprocess.check_call(cmd)
+                        logger.info('Converted %s -> %s', src, out)
+                        success_magick = True
+                    except subprocess.CalledProcessError as e:
+                        logger.warning('ImageMagick conversion failed for %s: %s. Trying Pillow fallback...', src, e)
+
+                if not success_magick:
+                    from PIL import Image
+                    with Image.open(src) as im:
+                        tgt_lower = target_format.lower()
+                        if tgt_lower in ('jpg', 'jpeg'):
+                            im = im.convert('RGB')
+                        elif tgt_lower == 'bmp':
+                            im = im.convert('RGB')
+                        im.save(out, quality=cfg.get('image_quality', 85))
+                    logger.info('Pillow fallback converted %s -> %s', src, out)
+
+                success = True
+                break
+            except Exception as e:
+                logger.warning('Attempt %d: failed to process %s: %s', attempt, src, e)
+                if attempt < max_retries:
+                    time.sleep(backoff * attempt)
+                else:
+                    logger.exception('All attempts failed for %s', src)
+                    return False
+
+        if success:
+            if os.path.normcase(src) != os.path.normcase(out):
+                if delete_original:
+                    if os.path.exists(src):
+                        os.remove(src)
+                        logger.info('Deleted original file: %s', src)
+                elif cfg.get('archive_dir'):
+                    archive_dir = cfg.get('archive_dir')
+                    os.makedirs(archive_dir, exist_ok=True)
+                    basename = os.path.basename(src)
+                    if os.path.exists(src):
+                        shutil.move(src, os.path.join(archive_dir, basename))
+                        logger.info('Archived original file %s to %s', src, archive_dir)
+                else:
+                    if enable_aliases and os.path.exists(src):
+                        src_ext = _normalize_ext(os.path.splitext(src)[1])
+                        canonical_ext = _resolve_extension(src_ext, ext_map)
+                        if canonical_ext:
+                            src_dir = os.path.dirname(src)
+                            src_stem = Path(src).stem
+                            normalized_src_path = os.path.join(src_dir, f"{src_stem}.{canonical_ext}")
+                            if src != normalized_src_path:
+                                _rename_output_path(src, normalized_src_path)
+                                logger.info('Normalized original file extension: %s -> %s', src, normalized_src_path)
+            return True
+
+    elif enable_aliases:
+        src_ext = _normalize_ext(os.path.splitext(src)[1])
+        canonical_ext = _resolve_extension(src_ext, ext_map)
+        if canonical_ext:
+            src_dir = os.path.dirname(src)
+            src_stem = Path(src).stem
+            normalized_src_path = os.path.join(src_dir, f"{src_stem}.{canonical_ext}")
+            if src != normalized_src_path:
+                _rename_output_path(src, normalized_src_path)
+                logger.info('Normalized file extension (no scheme matched): %s -> %s', src, normalized_src_path)
         return True
 
-    if os.path.exists(unique_out):
-        if is_rename:
-            if os.path.normcase(src) != os.path.normcase(unique_out) and is_same_file_content(src, unique_out):
-                logger.info('File %s is already renamed/present as %s', src, unique_out)
-                return True
-        else:
-            if os.path.getmtime(unique_out) >= os.path.getmtime(src):
-                logger.info('File %s is already converted/present as %s', src, unique_out)
-                return True
-
-    out = unique_out
-    out_dir = os.path.dirname(out)
-    os.makedirs(out_dir, exist_ok=True)
-
-    max_retries = int(cfg.get('max_retries', 3))
-    backoff = float(cfg.get('retry_backoff', 1.0))
-
-    for attempt in range(1, max_retries + 1):
-        try:
-            if not os.path.exists(src):
-                logger.warning('Source file does not exist: %s', src)
-                return False
-
-            if _should_rename_only(src, target_format, cfg):
-                _rename_output_path(src, out)
-                logger.info('Renamed %s -> %s', src, out)
-                return True
-
-            cmd_base = _find_imagemagick_command()
-            success_magick = False
-            if cmd_base:
-                try:
-                    cmd = [cmd_base, src, out]
-                    subprocess.check_call(cmd)
-                    logger.info('Converted %s -> %s', src, out)
-                    success_magick = True
-                except subprocess.CalledProcessError as e:
-                    logger.warning('ImageMagick conversion failed for %s: %s. Trying Pillow fallback...', src, e)
-
-            if not success_magick:
-                # Pillow fallback
-                from PIL import Image
-                with Image.open(src) as im:
-                    im = im.convert('RGB')
-                    im.save(out, quality=cfg.get('image_quality', 85))
-                logger.info('Pillow fallback converted %s -> %s', src, out)
-            return True
-        except Exception as e:
-            logger.warning('Attempt %d: failed to process %s: %s', attempt, src, e)
-            if attempt < max_retries:
-                time.sleep(backoff * attempt)
-            else:
-                logger.exception('All attempts failed for %s', src)
-                return False
+    return False
 
 
 def run_worker(poll_interval=1):
@@ -523,42 +622,7 @@ def run_worker(poll_interval=1):
                 try:
                     success = process_item(item, cfg)
                     if success:
-                        # handle original file per config
-                        try:
-                            src_path = item.get('path')
-                            target_format = str(cfg.get('target_format', 'jpg') or 'jpg').strip().lstrip('.') or 'jpg'
-                            out_path = rules.normalize_output_path(src_path, target_format)
-                            is_rename = _should_rename_only(src_path, target_format, cfg)
-                            out_path = get_unique_output_path(src_path, out_path, is_rename)
-                            
-                            # Only delete/archive if it is a different file on disk
-                            if os.path.normcase(src_path) != os.path.normcase(out_path):
-                                if cfg.get('delete_original'):
-                                    if os.path.exists(src_path):
-                                        os.remove(src_path)
-                                        logger.info('Deleted original file: %s', src_path)
-                                elif cfg.get('archive_dir'):
-                                    archive_dir = cfg.get('archive_dir')
-                                    os.makedirs(archive_dir, exist_ok=True)
-                                    basename = os.path.basename(src_path)
-                                    if os.path.exists(src_path):
-                                        shutil.move(src_path, os.path.join(archive_dir, basename))
-                                        logger.info('Archived original file %s to %s', src_path, archive_dir)
-                                else:
-                                    # Normalize original file's extension case/alias if delete_original is False
-                                    if os.path.exists(src_path):
-                                        src_ext = _normalize_ext(os.path.splitext(src_path)[1])
-                                        ext_map = _build_extension_map(cfg)
-                                        canonical_ext = _resolve_extension(src_ext, ext_map)
-                                        if canonical_ext:
-                                            src_dir = os.path.dirname(src_path)
-                                            src_stem = Path(src_path).stem
-                                            normalized_src_path = os.path.join(src_dir, f"{src_stem}.{canonical_ext}")
-                                            if src_path != normalized_src_path:
-                                                _rename_output_path(src_path, normalized_src_path)
-                                                logger.info('Normalized original file extension: %s -> %s', src_path, normalized_src_path)
-                        except Exception:
-                            logger.exception('Failed post-processing on %s', item.get('path'))
+                        logger.info('Successfully processed item: %s', item.get('path'))
                 except Exception:
                     logger.exception('Error processing item %s', item)
             else:

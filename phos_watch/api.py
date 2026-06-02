@@ -103,6 +103,10 @@ async def post_config(req: Request):
                 if any(c in p_val for c in ['<', '>', '|', '?', '*'] if c):
                     return False, f"Invalid path contains illegal characters: {p_val}"
 
+            # enable toggles: normalize to bool
+            migrated['enable_conversion_schemes'] = bool(migrated.get('enable_conversion_schemes', True))
+            migrated['enable_extension_aliases'] = bool(migrated.get('enable_extension_aliases', True))
+
             # source_extensions: normalize to list of lowercase suffixes
             se = migrated.get('source_extensions')
             if se is None:
@@ -379,14 +383,34 @@ async def index():
                         </div>
 
                         <div class="module">
-                            <h4 data-i18n="module_scheme_title">2) 轉檔方案</h4>
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <h4 style="margin: 0;" data-i18n="module_scheme_title">2) 轉檔方案</h4>
+                                <label style="font-weight: 600;"><input type="checkbox" id="enable_conversion_schemes" /> <span data-i18n="enable_module">啟用此功能</span></label>
+                            </div>
                             <div class="field-help" data-i18n="module_scheme_desc">可建立多個方案。每個方案包含來源副檔名、目標副檔名與是否刪除原檔。</div>
                             <div id="schemes_rows" class="item-list"></div>
                             <div class="row" style="margin-top:8px;">
                                 <input type="text" id="scheme_name" data-i18n-placeholder="scheme_name_placeholder" placeholder="方案名稱（例如：手機照片）" />
-                                <input type="text" id="scheme_sources" data-i18n-placeholder="scheme_sources_placeholder" placeholder="來源副檔名，逗號分隔，例如 heic,heif" />
                             </div>
-                            <div class="row">
+                            <div class="field" style="margin-top: 8px; display: flex; flex-direction: column; gap: 4px;">
+                                <label style="font-weight: 600;" data-i18n="source_extensions_label">來源副檔名</label>
+                                <div id="scheme_sources_checkboxes" style="display: flex; flex-wrap: wrap; gap: 10px; padding: 10px; background: #fff; border: 1px solid #cbd5e1; border-radius: 10px;">
+                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="jpg" /> jpg</label>
+                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="jpeg" /> jpeg</label>
+                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="png" /> png</label>
+                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="webp" /> webp</label>
+                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="gif" /> gif</label>
+                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="bmp" /> bmp</label>
+                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="tiff" /> tiff</label>
+                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="tif" /> tif</label>
+                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="heic" /> heic</label>
+                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="heif" /> heif</label>
+                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="avif" /> avif</label>
+                                </div>
+                                <input type="text" id="scheme_sources_custom" data-i18n-placeholder="scheme_sources_custom_placeholder" placeholder="自訂其他副檔名，逗號分隔，例如 raw" style="margin-top: 4px;" />
+                                <div class="field-help" style="color: #b45309; margin-top: 4px;" data-i18n="custom_ext_warning">⚠️ 提示：自訂副檔名不一定支援轉檔，僅限已知相容格式。</div>
+                            </div>
+                            <div class="row" style="margin-top: 8px;">
                                 <select id="scheme_target"></select>
                                 <input type="text" id="scheme_target_custom" data-i18n-placeholder="target_format_custom_placeholder" placeholder="輸入副檔名，例如 JPG 或 jpeg" />
                                 <label><input type="checkbox" id="scheme_delete_original" /> <span data-i18n="delete_original_label">轉檔後刪除原檔</span></label>
@@ -395,7 +419,10 @@ async def index():
                         </div>
 
                         <div class="module">
-                            <h4 data-i18n="module_alias_title">3) 副檔名規範</h4>
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <h4 style="margin: 0;" data-i18n="module_alias_title">3) 副檔名規範</h4>
+                                <label style="font-weight: 600;"><input type="checkbox" id="enable_extension_aliases" /> <span data-i18n="enable_module">啟用此功能</span></label>
+                            </div>
                             <div class="field-help" data-i18n="module_alias_desc">設定同一格式可能出現的多種副檔名，系統會用來判斷與正規化。</div>
                             <div id="alias_rows" class="item-list"></div>
                             <div class="row" style="margin-top:8px;">
@@ -866,6 +893,15 @@ async def index():
                         if (lHours) lHours.value = j.log_max_hours !== undefined ? j.log_max_hours : 0;
                         const lBackup = document.getElementById('log_backup_count');
                         if (lBackup) lBackup.value = j.log_backup_count !== undefined ? j.log_backup_count : 5;
+
+                        // Load module enable toggles
+                        const enSchemes = document.getElementById('enable_conversion_schemes');
+                        if (enSchemes) enSchemes.checked = j.enable_conversion_schemes !== false;
+                        const enAliases = document.getElementById('enable_extension_aliases');
+                        if (enAliases) enAliases.checked = j.enable_extension_aliases !== false;
+                        if (typeof updateModuleStatusUI === 'function') {
+                            updateModuleStatusUI();
+                        }
                     } catch (e) { console.error(e); }
                 }
 
@@ -1064,6 +1100,8 @@ async def index():
                         cfg.watch_paths = getWatchPaths();
                         cfg.conversion_schemes = getSchemes();
                         cfg.extension_aliases = getAliases();
+                        cfg.enable_conversion_schemes = document.getElementById('enable_conversion_schemes').checked;
+                        cfg.enable_extension_aliases = document.getElementById('enable_extension_aliases').checked;
 
                         // Save log settings
                         cfg.log_max_lines = parseInt(document.getElementById('log_max_lines')?.value || '0', 10);
@@ -1082,7 +1120,7 @@ async def index():
                             showToast(t('watch_paths_required'), true);
                             return;
                         }
-                        if (!cfg.conversion_schemes.length) {
+                        if (cfg.enable_conversion_schemes && !cfg.conversion_schemes.length) {
                             showToast(t('conversion_scheme_required'), true);
                             return;
                         }
@@ -1141,13 +1179,24 @@ async def index():
 
                     if (schemeBtn) schemeBtn.addEventListener('click', () => {
                         const nameEl = document.getElementById('scheme_name');
-                        const srcEl = document.getElementById('scheme_sources');
+                        const srcCustomEl = document.getElementById('scheme_sources_custom');
                         const tgtEl = document.getElementById('scheme_target');
                         const tgtCustomEl = document.getElementById('scheme_target_custom');
                         const delEl = document.getElementById('scheme_delete_original');
 
                         const name = String(nameEl && nameEl.value || '').trim() || ('scheme-' + (getSchemes().length + 1));
-                        const source_extensions = normalizeTextList(srcEl && srcEl.value || '').map(x => normalizeSuffix(x).toLowerCase());
+                        
+                        // Collect checked checkboxes
+                        const checkedExts = Array.from(document.querySelectorAll('input[name="src_ext"]:checked')).map(chk => chk.value);
+                        // Collect custom list
+                        const customExts = normalizeTextList(srcCustomEl && srcCustomEl.value || '').map(x => normalizeSuffix(x).toLowerCase());
+                        const source_extensions = Array.from(new Set([...checkedExts, ...customExts]));
+
+                        if (!source_extensions.length) {
+                            showToast(t('source_extensions_label') + ' ' + t('list_empty'), true);
+                            return;
+                        }
+
                         const target_format = normalizeSuffix((tgtCustomEl && tgtCustomEl.value) || (tgtEl && tgtEl.value) || '');
                         if (!target_format) return;
 
@@ -1161,7 +1210,9 @@ async def index():
                         });
                         renderSchemes(next);
                         if (nameEl) nameEl.value = '';
-                        if (srcEl) srcEl.value = '';
+                        if (srcCustomEl) srcCustomEl.value = '';
+                        // Uncheck checkboxes
+                        document.querySelectorAll('input[name="src_ext"]').forEach(chk => chk.checked = false);
                         if (tgtCustomEl) tgtCustomEl.value = '';
                     });
 
@@ -1187,6 +1238,37 @@ async def index():
                 document.getElementById('loadConfig').addEventListener('click', loadConfig);
                 document.getElementById('saveConfig').addEventListener('click', saveConfig);
                 bindConfigEditors();
+
+                function updateModuleStatusUI() {
+                    const enSchemes = document.getElementById('enable_conversion_schemes');
+                    const enAliases = document.getElementById('enable_extension_aliases');
+                    const enableSchemes = enSchemes ? enSchemes.checked : true;
+                    const enableAliases = enAliases ? enAliases.checked : true;
+
+                    const schemeInputs = [
+                        'scheme_name', 'scheme_sources_custom', 'scheme_target', 'scheme_target_custom', 'scheme_delete_original', 'scheme_add'
+                    ];
+                    schemeInputs.forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.disabled = !enableSchemes;
+                    });
+                    document.querySelectorAll('input[name="src_ext"]').forEach(chk => {
+                        chk.disabled = !enableSchemes;
+                    });
+
+                    const aliasInputs = [
+                        'alias_canonical', 'alias_values', 'alias_add'
+                    ];
+                    aliasInputs.forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.disabled = !enableAliases;
+                    });
+                }
+
+                const toggleSchemesEl = document.getElementById('enable_conversion_schemes');
+                if (toggleSchemesEl) toggleSchemesEl.addEventListener('change', updateModuleStatusUI);
+                const toggleAliasesEl = document.getElementById('enable_extension_aliases');
+                if (toggleAliasesEl) toggleAliasesEl.addEventListener('change', updateModuleStatusUI);
 
                 function updateComponentStatus(elementId, statusInfo) {
                     const el = document.getElementById(elementId);

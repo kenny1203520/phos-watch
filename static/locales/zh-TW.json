@@ -71,5 +71,10 @@
   "log_max_size_kb_label": "最大大小 (KB, 0表示不限制)",
   "log_max_hours_label": "最大時間 (小時, 0表示不限制)",
   "log_backup_count_label": "保留備份檔個數",
-  "invalid_path_error": "路徑包含非法字元，請重新輸入！"
+  "invalid_path_error": "路徑包含非法字元，請重新輸入！",
+  "enable_module": "啟用此功能",
+  "scheme_sources_custom_placeholder": "自訂其他副檔名，逗號分隔，例如 raw",
+  "custom_ext_warning": "⚠️ 提示：自訂副檔名不一定支援轉檔，僅限已知相容格式。",
+  "enable_conversion_schemes_label": "啟用轉檔方案",
+  "enable_extension_aliases_label": "啟用副檔名規範"
 }
