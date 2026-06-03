@@ -2235,10 +2235,12 @@ async def index():
                     const dotText = badge.querySelector('.label-text');
                     badge.className = 'badge-dot';
                     
-                    if (state === 'running' || state === 'idle' || state === 'normal' || state === 'active') {
+                    const statusStr = (state && typeof state === 'object') ? state.status : state;
+                    
+                    if (statusStr === 'running' || statusStr === 'idle' || statusStr === 'normal' || statusStr === 'active') {
                         badge.classList.add('status-normal');
                         dotText.innerText = t('status_normal');
-                    } else if (state === 'abnormal' || state === 'error') {
+                    } else if (statusStr === 'abnormal' || statusStr === 'error') {
                         badge.classList.add('status-abnormal');
                         dotText.innerText = t('status_abnormal');
                     } else {
