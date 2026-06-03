@@ -1272,6 +1272,7 @@ async def index():
                                         <input type="checkbox" id="watch_path_recursive" />
                                         <span data-i18n="recursive_watch">遞迴監看</span>
                                     </label>
+                                    <button type="button" id="watch_path_cancel" class="btn secondary" data-i18n="cancel" style="display:none;">取消</button>
                                     <button type="button" id="watch_path_add" class="btn secondary" data-i18n="add_item">新增</button>
                                 </div>
                             </div>
@@ -1333,7 +1334,10 @@ async def index():
                                             <input type="checkbox" id="scheme_delete_original" />
                                             <span data-i18n="delete_original_label">轉檔後刪除原檔</span>
                                         </label>
-                                        <button type="button" id="scheme_add" class="btn secondary" data-i18n="add_item">新增</button>
+                                        <div style="display:flex; gap:8px;">
+                                            <button type="button" id="scheme_cancel" class="btn secondary" data-i18n="cancel" style="display:none;">取消</button>
+                                            <button type="button" id="scheme_add" class="btn secondary" data-i18n="add_item">新增</button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1355,6 +1359,7 @@ async def index():
                                     <input type="text" id="alias_canonical" class="input-text" data-i18n-placeholder="alias_canonical_placeholder" placeholder="標準副檔名，例如 jpg" />
                                     <div style="display:flex; gap:8px;">
                                         <input type="text" id="alias_values" class="input-text" data-i18n-placeholder="alias_values_placeholder" placeholder="別名，逗號分隔，例如 jpeg,JPG,JPEG" style="flex:1;" />
+                                        <button type="button" id="alias_cancel" class="btn secondary" data-i18n="cancel" style="display:none;">取消</button>
                                         <button type="button" id="alias_add" class="btn secondary" data-i18n="add_item">新增</button>
                                     </div>
                                 </div>
@@ -1459,6 +1464,9 @@ async def index():
                 let originalConfig = {};
                 let currentConfig = {};
                 let isConfigLoaded = false;
+                let editingWatchPathIndex = null;
+                let editingSchemeIndex = null;
+                let editingAliasCanonical = null;
 
                 i18next.use(i18nextHttpBackend).use(i18nextBrowserLanguageDetector).init({
                     fallbackLng: 'zh-TW',
@@ -1689,6 +1697,31 @@ async def index():
                 }
 
                 // 1) Watch Paths Render & Actions
+                function startEditWatchPath(index) {
+                    editingWatchPathIndex = index;
+                    const item = currentConfig.watch_paths[index];
+                    document.getElementById('watch_path_input').value = item.path;
+                    document.getElementById('watch_path_recursive').checked = item.recursive;
+                    
+                    const addBtn = document.getElementById('watch_path_add');
+                    addBtn.textContent = t('save');
+                    addBtn.removeAttribute('data-i18n');
+                    
+                    document.getElementById('watch_path_cancel').style.display = 'inline-flex';
+                }
+
+                function resetWatchPathEditState() {
+                    editingWatchPathIndex = null;
+                    document.getElementById('watch_path_input').value = '';
+                    document.getElementById('watch_path_recursive').checked = false;
+                    
+                    const addBtn = document.getElementById('watch_path_add');
+                    addBtn.textContent = t('add_item');
+                    addBtn.setAttribute('data-i18n', 'add_item');
+                    
+                    document.getElementById('watch_path_cancel').style.display = 'none';
+                }
+
                 function renderWatchPaths() {
                     const container = document.getElementById('watch_paths_rows');
                     container.innerHTML = '';
@@ -1714,11 +1747,35 @@ async def index():
                         desc.className = 'chip-desc';
                         desc.textContent = item.recursive ? t('recursive_yes') : t('recursive_no');
                         
+                        const editBtn = document.createElement('button');
+                        editBtn.type = 'button';
+                        editBtn.textContent = '✏️';
+                        editBtn.setAttribute('aria-label', t('edit'));
+                        editBtn.style.background = 'transparent';
+                        editBtn.style.border = '0';
+                        editBtn.style.color = 'inherit';
+                        editBtn.style.cursor = 'pointer';
+                        editBtn.style.fontSize = '12px';
+                        editBtn.style.display = 'flex';
+                        editBtn.style.alignItems = 'center';
+                        editBtn.style.justifyContent = 'center';
+                        editBtn.style.width = '14px';
+                        editBtn.style.height = '14px';
+                        editBtn.style.borderRadius = '50%';
+                        editBtn.onclick = () => {
+                            startEditWatchPath(index);
+                        };
+                        
                         const delBtn = document.createElement('button');
                         delBtn.type = 'button';
                         delBtn.textContent = '×';
                         delBtn.setAttribute('aria-label', t('remove_item'));
                         delBtn.onclick = () => {
+                            if (editingWatchPathIndex === index) {
+                                resetWatchPathEditState();
+                            } else if (editingWatchPathIndex > index) {
+                                editingWatchPathIndex--;
+                            }
                             currentConfig.watch_paths.splice(index, 1);
                             renderWatchPaths();
                             checkConfigChanges();
@@ -1726,6 +1783,7 @@ async def index():
                         
                         chip.appendChild(text);
                         chip.appendChild(desc);
+                        chip.appendChild(editBtn);
                         chip.appendChild(delBtn);
                         container.appendChild(chip);
                     });
@@ -1743,15 +1801,28 @@ async def index():
                     }
 
                     if (!currentConfig.watch_paths) currentConfig.watch_paths = [];
-                    currentConfig.watch_paths.push({
-                        path: path,
-                        recursive: recursive.checked
-                    });
+                    
+                    if (editingWatchPathIndex !== null) {
+                        currentConfig.watch_paths[editingWatchPathIndex] = {
+                            path: path,
+                            recursive: recursive.checked
+                        };
+                        resetWatchPathEditState();
+                    } else {
+                        currentConfig.watch_paths.push({
+                            path: path,
+                            recursive: recursive.checked
+                        });
+                        input.value = '';
+                        recursive.checked = false;
+                    }
 
-                    input.value = '';
-                    recursive.checked = false;
                     renderWatchPaths();
                     checkConfigChanges();
+                });
+
+                document.getElementById('watch_path_cancel').addEventListener('click', () => {
+                    resetWatchPathEditState();
                 });
 
                 // Checkbox Active State Visual Handler
@@ -1767,6 +1838,63 @@ async def index():
                 });
 
                 // 2) Conversion Schemes Render & Actions
+                function startEditScheme(index) {
+                    editingSchemeIndex = index;
+                    const sc = currentConfig.conversion_schemes[index];
+                    document.getElementById('scheme_name').value = sc.name || '';
+                    document.getElementById('scheme_delete_original').checked = !!sc.delete_original;
+                    
+                    const defaultExts = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tiff', 'tif', 'heic', 'heif', 'avif'];
+                    document.querySelectorAll('#scheme_sources_checkboxes input').forEach(cb => {
+                        const val = cb.value;
+                        const isChecked = sc.source_extensions.includes(val);
+                        cb.checked = isChecked;
+                        const label = cb.closest('.checkbox-card');
+                        if (isChecked) {
+                            label.classList.add('active');
+                        } else {
+                            label.classList.remove('active');
+                        }
+                    });
+                    
+                    const customExts = sc.source_extensions.filter(ext => !defaultExts.includes(ext));
+                    document.getElementById('scheme_sources_custom').value = customExts.join(', ');
+                    
+                    const select = document.getElementById('scheme_target');
+                    const options = Array.from(select.options).map(opt => opt.value);
+                    if (options.includes(sc.target_format)) {
+                        select.value = sc.target_format;
+                        document.getElementById('scheme_target_custom').value = '';
+                    } else {
+                        select.value = '';
+                        document.getElementById('scheme_target_custom').value = sc.target_format;
+                    }
+                    
+                    const addBtn = document.getElementById('scheme_add');
+                    addBtn.textContent = t('save');
+                    addBtn.removeAttribute('data-i18n');
+                    
+                    document.getElementById('scheme_cancel').style.display = 'inline-flex';
+                }
+
+                function resetSchemeEditState() {
+                    editingSchemeIndex = null;
+                    document.getElementById('scheme_name').value = '';
+                    document.getElementById('scheme_sources_custom').value = '';
+                    document.getElementById('scheme_target_custom').value = '';
+                    document.getElementById('scheme_delete_original').checked = false;
+                    document.querySelectorAll('input[name="src_ext"]').forEach(cb => {
+                        cb.checked = false;
+                        cb.closest('.checkbox-card').classList.remove('active');
+                    });
+                    
+                    const addBtn = document.getElementById('scheme_add');
+                    addBtn.textContent = t('add_item');
+                    addBtn.setAttribute('data-i18n', 'add_item');
+                    
+                    document.getElementById('scheme_cancel').style.display = 'none';
+                }
+
                 function renderSchemes() {
                     const container = document.getElementById('schemes_rows');
                     container.innerHTML = '';
@@ -1813,11 +1941,24 @@ async def index():
                         enabledLabel.appendChild(enabledCb);
                         enabledLabel.appendChild(document.createTextNode(t('enable_module')));
                         
+                        const editBtn = document.createElement('button');
+                        editBtn.type = 'button';
+                        editBtn.className = 'btn secondary sm';
+                        editBtn.textContent = t('edit');
+                        editBtn.onclick = () => {
+                            startEditScheme(index);
+                        };
+                        
                         const delBtn = document.createElement('button');
                         delBtn.type = 'button';
                         delBtn.className = 'btn danger sm';
                         delBtn.textContent = t('remove');
                         delBtn.onclick = () => {
+                            if (editingSchemeIndex === index) {
+                                resetSchemeEditState();
+                            } else if (editingSchemeIndex > index) {
+                                editingSchemeIndex--;
+                            }
                             currentConfig.conversion_schemes.splice(index, 1);
                             renderSchemes();
                             renderTargetSelectOptions();
@@ -1825,6 +1966,7 @@ async def index():
                         };
                         
                         right.appendChild(enabledLabel);
+                        right.appendChild(editBtn);
                         right.appendChild(delBtn);
                         
                         row.appendChild(left);
@@ -1858,30 +2000,70 @@ async def index():
 
                     if (!currentConfig.conversion_schemes) currentConfig.conversion_schemes = [];
                     
-                    currentConfig.conversion_schemes.push({
-                        name: name || ('scheme-' + (currentConfig.conversion_schemes.length + 1)),
-                        source_extensions: checkedSources,
-                        target_format: target,
-                        delete_original: deleteOrig,
-                        enabled: true
-                    });
-
-                    // Clear fields
-                    document.getElementById('scheme_name').value = '';
-                    document.getElementById('scheme_sources_custom').value = '';
-                    document.getElementById('scheme_target_custom').value = '';
-                    document.getElementById('scheme_delete_original').checked = false;
-                    document.querySelectorAll('input[name="src_ext"]:checked').forEach(cb => {
-                        cb.checked = false;
-                        cb.closest('.checkbox-card').classList.remove('active');
-                    });
+                    if (editingSchemeIndex !== null) {
+                        const currentEnabled = !!currentConfig.conversion_schemes[editingSchemeIndex].enabled;
+                        currentConfig.conversion_schemes[editingSchemeIndex] = {
+                            name: name || ('scheme-' + (editingSchemeIndex + 1)),
+                            source_extensions: checkedSources,
+                            target_format: target,
+                            delete_original: deleteOrig,
+                            enabled: currentEnabled
+                        };
+                        resetSchemeEditState();
+                    } else {
+                        currentConfig.conversion_schemes.push({
+                            name: name || ('scheme-' + (currentConfig.conversion_schemes.length + 1)),
+                            source_extensions: checkedSources,
+                            target_format: target,
+                            delete_original: deleteOrig,
+                            enabled: true
+                        });
+                        
+                        // Clear fields
+                        document.getElementById('scheme_name').value = '';
+                        document.getElementById('scheme_sources_custom').value = '';
+                        document.getElementById('scheme_target_custom').value = '';
+                        document.getElementById('scheme_delete_original').checked = false;
+                        document.querySelectorAll('input[name="src_ext"]:checked').forEach(cb => {
+                            cb.checked = false;
+                            cb.closest('.checkbox-card').classList.remove('active');
+                        });
+                    }
 
                     renderSchemes();
                     renderTargetSelectOptions();
                     checkConfigChanges();
                 });
 
+                document.getElementById('scheme_cancel').addEventListener('click', () => {
+                    resetSchemeEditState();
+                });
+
                 // 3) Extension Aliases Render & Actions
+                function startEditAlias(canonical) {
+                    editingAliasCanonical = canonical;
+                    document.getElementById('alias_canonical').value = canonical;
+                    document.getElementById('alias_values').value = (currentConfig.extension_aliases[canonical] || []).join(', ');
+                    
+                    const addBtn = document.getElementById('alias_add');
+                    addBtn.textContent = t('save');
+                    addBtn.removeAttribute('data-i18n');
+                    
+                    document.getElementById('alias_cancel').style.display = 'inline-flex';
+                }
+
+                function resetAliasEditState() {
+                    editingAliasCanonical = null;
+                    document.getElementById('alias_canonical').value = '';
+                    document.getElementById('alias_values').value = '';
+                    
+                    const addBtn = document.getElementById('alias_add');
+                    addBtn.textContent = t('add_item');
+                    addBtn.setAttribute('data-i18n', 'add_item');
+                    
+                    document.getElementById('alias_cancel').style.display = 'none';
+                }
+
                 function renderAliases() {
                     const container = document.getElementById('alias_rows');
                     container.innerHTML = '';
@@ -1909,19 +2091,37 @@ async def index():
                         left.appendChild(title);
                         left.appendChild(details);
                         
+                        const actions = document.createElement('div');
+                        actions.style.display = 'flex';
+                        actions.style.gap = '6px';
+                        
+                        const editBtn = document.createElement('button');
+                        editBtn.type = 'button';
+                        editBtn.className = 'btn secondary sm';
+                        editBtn.textContent = t('edit');
+                        editBtn.onclick = () => {
+                            startEditAlias(canonical);
+                        };
+                        
                         const delBtn = document.createElement('button');
                         delBtn.type = 'button';
                         delBtn.className = 'btn danger sm';
                         delBtn.textContent = t('remove');
                         delBtn.onclick = () => {
+                            if (editingAliasCanonical === canonical) {
+                                resetAliasEditState();
+                            }
                             delete currentConfig.extension_aliases[canonical];
                             renderAliases();
                             renderTargetSelectOptions();
                             checkConfigChanges();
                         };
                         
+                        actions.appendChild(editBtn);
+                        actions.appendChild(delBtn);
+                        
                         row.appendChild(left);
-                        row.appendChild(delBtn);
+                        row.appendChild(actions);
                         container.appendChild(row);
                     });
                 }
@@ -1935,14 +2135,20 @@ async def index():
                     if (list.length === 0) return;
 
                     if (!currentConfig.extension_aliases) currentConfig.extension_aliases = {};
+                    
+                    if (editingAliasCanonical !== null) {
+                        delete currentConfig.extension_aliases[editingAliasCanonical];
+                    }
                     currentConfig.extension_aliases[canonical] = list;
-
-                    document.getElementById('alias_canonical').value = '';
-                    document.getElementById('alias_values').value = '';
+                    resetAliasEditState();
 
                     renderAliases();
                     renderTargetSelectOptions();
                     checkConfigChanges();
+                });
+
+                document.getElementById('alias_cancel').addEventListener('click', () => {
+                    resetAliasEditState();
                 });
 
                 // Load configuration from API
@@ -1972,6 +2178,9 @@ async def index():
                 // Discard changes
                 document.getElementById('discardConfigBtn').addEventListener('click', () => {
                     currentConfig = JSON.parse(JSON.stringify(originalConfig));
+                    resetWatchPathEditState();
+                    resetSchemeEditState();
+                    resetAliasEditState();
                     syncFormInputsToState();
                     renderWatchPaths();
                     renderSchemes();

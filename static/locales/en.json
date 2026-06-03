@@ -110,5 +110,8 @@
   "status_dashboard": "System Status",
   "unsaved_changes_alert": "You have unsaved configuration changes.",
   "discard_btn": "Discard Changes",
-  "scheme_name_label": "Scheme Name"
+  "scheme_name_label": "Scheme Name",
+  "edit": "Edit",
+  "cancel": "Cancel",
+  "save": "Save"
 }
