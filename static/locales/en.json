@@ -105,5 +105,6 @@
   "freq_weekly": "Every few weeks",
   "freq_specific_time": "At specific time daily",
   "update_check_interval_label": "Check interval value",
-  "update_check_time_label": "Daily check time (HH:MM)"
+  "update_check_time_label": "Daily check time (HH:MM)",
+  "already_latest": "Already up to date"
 }

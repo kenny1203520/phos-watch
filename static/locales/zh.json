@@ -105,5 +105,6 @@
   "freq_weekly": "每隔幾週",
   "freq_specific_time": "每日特定時間",
   "update_check_interval_label": "檢查間隔數值",
-  "update_check_time_label": "每日檢查時間 (HH:MM)"
+  "update_check_time_label": "每日檢查時間 (HH:MM)",
+  "already_latest": "已是最新版本"
 }

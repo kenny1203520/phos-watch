@@ -22,6 +22,7 @@ def test_parse_version():
     assert parse_version("10.2.33-beta.14") == (10, 2, 33, 2, 14)
 
 
+@patch("phos_watch.updater.__version__", "0.1.0")
 @patch("urllib.request.urlopen")
 def test_check_update_no_update(mock_urlopen):
     # Mock return data
@@ -35,6 +36,7 @@ def test_check_update_no_update(mock_urlopen):
     assert res["update_available"] is False
 
 
+@patch("phos_watch.updater.__version__", "0.1.0")
 @patch("urllib.request.urlopen")
 def test_check_update_has_update(mock_urlopen):
     mock_response = MagicMock()
@@ -47,6 +49,7 @@ def test_check_update_has_update(mock_urlopen):
     assert res["update_available"] is True
 
 
+@patch("phos_watch.updater.__version__", "0.1.0")
 @patch("urllib.request.urlopen")
 def test_check_update_include_prerelease(mock_urlopen):
     mock_response = MagicMock()

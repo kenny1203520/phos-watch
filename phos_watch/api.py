@@ -1448,6 +1448,7 @@ async def index():
 
                 let updaterPolling = false;
                 let isUpdating = false;
+                let isManualCheck = false;
 
                 async function checkUpdaterStatusOnce() {
                     try {
@@ -1462,10 +1463,6 @@ async def index():
                             updateBadge.style.background = '#fef08a';
                             updateBadge.style.color = '#854d0e';
                             updateBadge.innerText = t('new_version_available') + ' (' + j.latest_version + ')';
-                            
-                            if (j.status === 'idle' && !isUpdating) {
-                                showUpdateDetails(j);
-                            }
                         } else {
                             updateBadge.style.display = 'none';
                         }
@@ -1478,11 +1475,46 @@ async def index():
                         const confirmBtn = document.getElementById('confirmUpdateBtn');
                         const checkBtn = document.getElementById('manualCheckUpdateBtn');
                         
-                        if (j.status !== 'idle') {
+                        if (j.status === 'idle') {
+                            isUpdating = false;
+                            checkBtn.disabled = false;
+                            
+                            if (j.update_available) {
+                                updateCard.style.display = 'block';
+                                updateStatusMsg.innerText = t('update_prompt') + ' ' + j.latest_version;
+                                actions.style.display = 'block';
+                                confirmBtn.style.display = 'inline-block';
+                                
+                                const notesSection = document.getElementById('updateNotesSection');
+                                const notesText = document.getElementById('updateReleaseNotes');
+                                if (j.release_notes) {
+                                    notesSection.style.display = 'block';
+                                    notesText.textContent = j.release_notes;
+                                } else {
+                                    notesSection.style.display = 'none';
+                                }
+                            } else {
+                                updateCard.style.display = 'none';
+                                if (isManualCheck) {
+                                    showToast(t('already_latest'), false);
+                                    isManualCheck = false;
+                                }
+                            }
+                        } else if (j.status === 'error') {
+                            isUpdating = false;
+                            isManualCheck = false;
+                            checkBtn.disabled = false;
+                            updateCard.style.display = 'block';
+                            updateStatusMsg.innerText = t('update_status_error') + ': ' + j.error_message;
+                            progressContainer.style.display = 'none';
+                            actions.style.display = 'block';
+                            confirmBtn.style.display = 'none';
+                        } else {
+                            // status is 'checking', 'downloading', 'applying', 'done'
                             isUpdating = true;
+                            checkBtn.disabled = true;
                             updateCard.style.display = 'block';
                             actions.style.display = 'none';
-                            checkBtn.disabled = true;
                             
                             if (j.status === 'checking') {
                                 updateStatusMsg.innerText = t('update_status_checking');
@@ -1502,13 +1534,6 @@ async def index():
                                     alert(t('restarting_msg'));
                                     location.reload();
                                 }, 3000);
-                            } else if (j.status === 'error') {
-                                updateStatusMsg.innerText = t('update_status_error') + ': ' + j.error_message;
-                                progressContainer.style.display = 'none';
-                                actions.style.display = 'block';
-                                confirmBtn.style.display = 'none';
-                                checkBtn.disabled = false;
-                                isUpdating = false;
                             }
                             
                             if (!updaterPolling) {
@@ -1517,27 +1542,6 @@ async def index():
                         }
                     } catch(e) {
                         console.error("Error checking updater status:", e);
-                    }
-                }
-
-                function showUpdateDetails(j) {
-                    const updateCard = document.getElementById('updateCard');
-                    const updateStatusMsg = document.getElementById('updateStatusMsg');
-                    const confirmBtn = document.getElementById('confirmUpdateBtn');
-                    const notesSection = document.getElementById('updateNotesSection');
-                    const notesText = document.getElementById('updateReleaseNotes');
-                    const actions = document.getElementById('updateCardActions');
-                    
-                    updateCard.style.display = 'block';
-                    updateStatusMsg.innerText = t('update_prompt') + ' ' + j.latest_version;
-                    actions.style.display = 'block';
-                    confirmBtn.style.display = 'inline-block';
-                    
-                    if (j.release_notes) {
-                        notesSection.style.display = 'block';
-                        notesText.textContent = j.release_notes;
-                    } else {
-                        notesSection.style.display = 'none';
                     }
                 }
 
@@ -1556,6 +1560,7 @@ async def index():
                     const origText = btn.textContent;
                     btn.disabled = true;
                     btn.innerText = t('checking_btn_text');
+                    isManualCheck = true;
                     try {
                         const res = await fetch('/updater/check', { method: 'POST' });
                         const j = await res.json();
@@ -1565,6 +1570,7 @@ async def index():
                         startUpdaterPolling();
                     } catch(e) {
                         showToast(t('check_failed'), true);
+                        isManualCheck = false;
                     } finally {
                         btn.disabled = false;
                         btn.textContent = origText;
