@@ -6,6 +6,17 @@ from phos_watch.watcher import start_watcher
 from phos_watch.worker import run_worker
 
 def main():
+    import sys
+    import os
+    # Clean up old binary leftover from self-updates
+    for ext in (".old", ".exe.old"):
+        old_exe = sys.executable + ext
+        if os.path.exists(old_exe):
+            try:
+                os.remove(old_exe)
+            except Exception:
+                pass
+
     parser = argparse.ArgumentParser(description='phos-watch entrypoint')
     parser.add_argument('--mode', choices=['watch','worker','web'], default='web')
     parser.add_argument('--config', default='config.yaml')

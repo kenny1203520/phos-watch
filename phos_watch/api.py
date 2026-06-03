@@ -9,9 +9,10 @@ import os
 from . import phos_queue as q
 from . import control
 from . import worker
+from . import updater
 
 app = FastAPI()
-logger = logging.getLogger('phos-watch-web')
+logger = logging.getLogger(__name__)
 LOGFILE = os.getenv('PHOS_LOG_FILE', os.path.join('logs', 'phos_watch.log'))
 
 # Check if log file exists, if not create it. Avoid truncating to preserve log history/rotation.
@@ -27,7 +28,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 app.mount('/static', StaticFiles(directory=os.path.join(BASE_DIR, 'static')), name='static')
 
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
     import threading
     from . import watcher
     
@@ -39,7 +40,10 @@ def startup_event():
     worker_thread = threading.Thread(target=worker.run_worker, daemon=True)
     worker_thread.start()
     
-    logger.info("Background watcher and worker threads started successfully.")
+    # Start background update scheduler task
+    asyncio.create_task(updater.updater_scheduler_loop())
+    
+    logger.info("Background watcher, worker, and updater scheduler threads started successfully.")
 
 @app.get('/status')
 async def status():
@@ -187,6 +191,18 @@ async def post_config(req: Request):
             except (ValueError, TypeError):
                 migrated['log_backup_count'] = 5
 
+            # updater settings validation and normalization
+            migrated['update_check_on_startup'] = bool(cfg.get('update_check_on_startup', True))
+            migrated['update_include_prerelease'] = bool(cfg.get('update_include_prerelease', False))
+            migrated['update_check_frequency'] = str(cfg.get('update_check_frequency', 'daily')).strip().lower()
+            if migrated['update_check_frequency'] not in ('none', 'hourly', 'daily', 'weekly', 'custom_hours', 'custom_days', 'specific_time'):
+                migrated['update_check_frequency'] = 'daily'
+            try:
+                migrated['update_check_interval'] = max(1, int(cfg.get('update_check_interval', 1)))
+            except (ValueError, TypeError):
+                migrated['update_check_interval'] = 1
+            migrated['update_check_time'] = str(cfg.get('update_check_time', '02:00')).strip()
+
             return True, migrated
 
         ok, result = validate_and_migrate(data)
@@ -290,6 +306,24 @@ async def websocket_logs(ws: WebSocket):
     except WebSocketDisconnect:
         pass
 
+@app.get('/updater/status')
+async def get_updater_status():
+    return JSONResponse(updater.get_updater_status())
+
+@app.post('/updater/check')
+async def post_updater_check():
+    cfg = worker.load_config()
+    include_prerelease = bool(cfg.get('update_include_prerelease', False))
+    updater.background_check_update(include_prerelease)
+    return JSONResponse({'ok': True})
+
+@app.post('/updater/run')
+async def post_updater_run():
+    cfg = worker.load_config()
+    include_prerelease = bool(cfg.get('update_include_prerelease', False))
+    updater.background_run_update(include_prerelease)
+    return JSONResponse({'ok': True})
+
 @app.get('/')
 async def index():
     html = '''
@@ -351,12 +385,31 @@ async def index():
             </div>
             <p class="muted" data-i18n="desc_watch_paths">監看路徑、可轉換格式與副檔名標準化都可在此調整。</p>
             <div class="grid">
+                <!-- Update card -->
+                <div class="card" id="updateCard" style="display:none; border: 1px solid #fed7aa; background: #fffbeb;">
+                    <h3 style="margin-top:0;" data-i18n="update_card_title">應用程式更新</h3>
+                    <div id="updateStatusMsg" style="font-weight: 500;">...</div>
+                    <div id="updateNotesSection" style="margin-top:8px; display:none;">
+                        <strong data-i18n="release_notes_label">釋出說明：</strong>
+                        <pre id="updateReleaseNotes" style="white-space: pre-wrap; background: #fafaf9; color: #44403c; border: 1px solid #e7e5e4; min-height: 50px; max-height: 150px; margin-top: 4px; padding: 8px; font-family: sans-serif;"></pre>
+                    </div>
+                    <div id="updateProgressContainer" style="display:none; width: 100%; background: #e2e8f0; border-radius: 999px; height: 10px; margin-top: 10px; overflow: hidden;">
+                        <div id="updateProgressBar" style="width: 0%; height: 100%; background: #f97316; transition: width 0.3s;"></div>
+                    </div>
+                    <div class="row" style="margin-top:12px;" id="updateCardActions">
+                        <button type="button" id="confirmUpdateBtn" data-i18n="confirm_update_btn">安裝更新</button>
+                        <button type="button" id="closeUpdateCardBtn" class="secondary" data-i18n="close_btn">關閉</button>
+                    </div>
+                </div>
+
                 <div class="card">
                     <div class="row">
                         <strong data-i18n="queue_length_label">Queue length:</strong> <span id="qlen">...</span>
                         <strong data-i18n="pause_state_label">Pause state:</strong> <span id="pausedState">...</span>
                         <strong data-i18n="watcher_status_label">Watcher status:</strong> <span id="watcherStatus" class="status-badge status-offline">...</span>
                         <strong data-i18n="worker_status_label">Worker status:</strong> <span id="workerStatus" class="status-badge status-offline">...</span>
+                        <strong data-i18n="app_version_label">Version:</strong> <span id="appVersion">...</span> <span id="updateBadge" style="display:none;" class="badge"></span>
+                        <button type="button" id="manualCheckUpdateBtn" class="secondary" style="padding: 4px 8px; font-size: 12px; margin-left: 8px;" data-i18n="check_update_btn">檢查更新</button>
                         <button id="togglePause" data-i18n="toggle_pause">Toggle Pause</button>
                         <button id="refreshQueue" class="secondary" data-i18n="refresh_queue">Refresh Queue</button>
                     </div>
@@ -451,6 +504,35 @@ async def index():
                                 <div class="field" style="flex: 1 1 180px;">
                                     <label for="log_backup_count" data-i18n="log_backup_count_label">保留備份檔個數</label>
                                     <input type="number" id="log_backup_count" min="0" placeholder="例如：5" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="module">
+                            <h4 data-i18n="module_update_title">5) 更新與排程設定</h4>
+                            <div class="field-help" data-i18n="module_update_desc">設定自動檢查更新的排程與偏好。</div>
+                            <div class="row" style="margin-top:8px; display: flex; gap: 16px; flex-wrap: wrap;">
+                                <label style="font-weight: 600; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="update_check_on_startup" /> <span data-i18n="update_check_on_startup_label">啟用啟動時檢查更新</span></label>
+                                <label style="font-weight: 600; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="update_include_prerelease" /> <span data-i18n="update_include_prerelease_label">接收測試版/預發布版更新 (Beta/RC)</span></label>
+                            </div>
+                            <div class="row" style="margin-top:8px; display: flex; gap: 16px; flex-wrap: wrap;">
+                                <div class="field" style="flex: 1 1 180px;">
+                                    <label for="update_check_frequency" data-i18n="update_check_frequency_label">檢查頻率</label>
+                                    <select id="update_check_frequency">
+                                        <option value="none" data-i18n="freq_none">無 (不自動檢查)</option>
+                                        <option value="hourly" data-i18n="freq_hourly">每隔幾小時</option>
+                                        <option value="daily" data-i18n="freq_daily">每隔幾天</option>
+                                        <option value="weekly" data-i18n="freq_weekly">每隔幾週</option>
+                                        <option value="specific_time" data-i18n="freq_specific_time">每日特定時間</option>
+                                    </select>
+                                </div>
+                                <div class="field" id="update_interval_field" style="flex: 1 1 180px;">
+                                    <label for="update_check_interval" data-i18n="update_check_interval_label">檢查間隔數值</label>
+                                    <input type="number" id="update_check_interval" min="1" value="1" />
+                                </div>
+                                <div class="field" id="update_time_field" style="flex: 1 1 180px; display:none;">
+                                    <label for="update_check_time" data-i18n="update_check_time_label">每日檢查時間 (HH:MM)</label>
+                                    <input type="text" id="update_check_time" placeholder="例如：02:00" />
                                 </div>
                             </div>
                         </div>
@@ -899,6 +981,22 @@ async def index():
                         if (enSchemes) enSchemes.checked = j.enable_conversion_schemes !== false;
                         const enAliases = document.getElementById('enable_extension_aliases');
                         if (enAliases) enAliases.checked = j.enable_extension_aliases !== false;
+
+                        // Load updater settings
+                        const upStartup = document.getElementById('update_check_on_startup');
+                        if (upStartup) upStartup.checked = j.update_check_on_startup !== false;
+                        const upPre = document.getElementById('update_include_prerelease');
+                        if (upPre) upPre.checked = !!j.update_include_prerelease;
+                        const upFreq = document.getElementById('update_check_frequency');
+                        if (upFreq) upFreq.value = j.update_check_frequency || 'daily';
+                        const upInterval = document.getElementById('update_check_interval');
+                        if (upInterval) upInterval.value = j.update_check_interval !== undefined ? j.update_check_interval : 1;
+                        const upTime = document.getElementById('update_check_time');
+                        if (upTime) upTime.value = j.update_check_time || '02:00';
+                        if (typeof updateUpdateFieldsUI === 'function') {
+                            updateUpdateFieldsUI();
+                        }
+
                         if (typeof updateModuleStatusUI === 'function') {
                             updateModuleStatusUI();
                         }
@@ -1108,6 +1206,13 @@ async def index():
                         cfg.log_max_size_kb = parseFloat(document.getElementById('log_max_size_kb')?.value || '0');
                         cfg.log_max_hours = parseFloat(document.getElementById('log_max_hours')?.value || '0');
                         cfg.log_backup_count = parseInt(document.getElementById('log_backup_count')?.value || '5', 10);
+
+                        // Save updater settings
+                        cfg.update_check_on_startup = !!document.getElementById('update_check_on_startup')?.checked;
+                        cfg.update_include_prerelease = !!document.getElementById('update_include_prerelease')?.checked;
+                        cfg.update_check_frequency = document.getElementById('update_check_frequency')?.value || 'daily';
+                        cfg.update_check_interval = parseInt(document.getElementById('update_check_interval')?.value || '1', 10);
+                        cfg.update_check_time = document.getElementById('update_check_time')?.value || '02:00';
 
                         // Backward-compatible fields for current worker logic
                         const active = cfg.conversion_schemes.find(sc => sc.enabled !== false) || cfg.conversion_schemes[0] || null;
@@ -1319,6 +1424,177 @@ async def index():
                 pollStatus();
                 pollQueue();
                 loadConfig();
+
+                // Updater dynamic script integration
+                function updateUpdateFieldsUI() {
+                    const freqEl = document.getElementById('update_check_frequency');
+                    if (!freqEl) return;
+                    const freq = freqEl.value;
+                    const intervalField = document.getElementById('update_interval_field');
+                    const timeField = document.getElementById('update_time_field');
+                    
+                    if (freq === 'none') {
+                        intervalField.style.display = 'none';
+                        timeField.style.display = 'none';
+                    } else if (freq === 'specific_time') {
+                        intervalField.style.display = 'none';
+                        timeField.style.display = 'block';
+                    } else {
+                        intervalField.style.display = 'block';
+                        timeField.style.display = 'none';
+                    }
+                }
+                document.getElementById('update_check_frequency').addEventListener('change', updateUpdateFieldsUI);
+
+                let updaterPolling = false;
+                let isUpdating = false;
+                let isManualCheck = false;
+
+                async function checkUpdaterStatusOnce() {
+                    try {
+                        const res = await fetch('/updater/status');
+                        const j = await res.json();
+                        
+                        document.getElementById('appVersion').innerText = j.current_version;
+                        
+                        const updateBadge = document.getElementById('updateBadge');
+                        if (j.update_available) {
+                            updateBadge.style.display = 'inline-block';
+                            updateBadge.style.background = '#fef08a';
+                            updateBadge.style.color = '#854d0e';
+                            updateBadge.innerText = t('new_version_available') + ' (' + j.latest_version + ')';
+                        } else {
+                            updateBadge.style.display = 'none';
+                        }
+                        
+                        const updateCard = document.getElementById('updateCard');
+                        const updateStatusMsg = document.getElementById('updateStatusMsg');
+                        const progressContainer = document.getElementById('updateProgressContainer');
+                        const progressBar = document.getElementById('updateProgressBar');
+                        const actions = document.getElementById('updateCardActions');
+                        const confirmBtn = document.getElementById('confirmUpdateBtn');
+                        const checkBtn = document.getElementById('manualCheckUpdateBtn');
+                        
+                        if (j.status === 'idle') {
+                            isUpdating = false;
+                            checkBtn.disabled = false;
+                            
+                            if (j.update_available) {
+                                updateCard.style.display = 'block';
+                                updateStatusMsg.innerText = t('update_prompt') + ' ' + j.latest_version;
+                                actions.style.display = 'block';
+                                confirmBtn.style.display = 'inline-block';
+                                
+                                const notesSection = document.getElementById('updateNotesSection');
+                                const notesText = document.getElementById('updateReleaseNotes');
+                                if (j.release_notes) {
+                                    notesSection.style.display = 'block';
+                                    notesText.textContent = j.release_notes;
+                                } else {
+                                    notesSection.style.display = 'none';
+                                }
+                            } else {
+                                updateCard.style.display = 'none';
+                                if (isManualCheck) {
+                                    showToast(t('already_latest'), false);
+                                    isManualCheck = false;
+                                }
+                            }
+                        } else if (j.status === 'error') {
+                            isUpdating = false;
+                            isManualCheck = false;
+                            checkBtn.disabled = false;
+                            updateCard.style.display = 'block';
+                            updateStatusMsg.innerText = t('update_status_error') + ': ' + j.error_message;
+                            progressContainer.style.display = 'none';
+                            actions.style.display = 'block';
+                            confirmBtn.style.display = 'none';
+                        } else {
+                            // status is 'checking', 'downloading', 'applying', 'done'
+                            isUpdating = true;
+                            checkBtn.disabled = true;
+                            updateCard.style.display = 'block';
+                            actions.style.display = 'none';
+                            
+                            if (j.status === 'checking') {
+                                updateStatusMsg.innerText = t('update_status_checking');
+                                progressContainer.style.display = 'none';
+                            } else if (j.status === 'downloading') {
+                                updateStatusMsg.innerText = t('update_status_downloading') + ' (' + j.progress + '%)';
+                                progressContainer.style.display = 'block';
+                                progressBar.style.width = j.progress + '%';
+                            } else if (j.status === 'applying') {
+                                updateStatusMsg.innerText = t('update_status_applying');
+                                progressContainer.style.display = 'block';
+                                progressBar.style.width = '100%';
+                            } else if (j.status === 'done') {
+                                updateStatusMsg.innerText = t('update_status_done');
+                                progressContainer.style.display = 'none';
+                                setTimeout(() => {
+                                    alert(t('restarting_msg'));
+                                    location.reload();
+                                }, 3000);
+                            }
+                            
+                            if (!updaterPolling) {
+                                startUpdaterPolling();
+                            }
+                        }
+                    } catch(e) {
+                        console.error("Error checking updater status:", e);
+                    }
+                }
+
+                async function startUpdaterPolling() {
+                    if (updaterPolling) return;
+                    updaterPolling = true;
+                    while (isUpdating) {
+                        await checkUpdaterStatusOnce();
+                        await new Promise(r => setTimeout(r, 1000));
+                    }
+                    updaterPolling = false;
+                }
+
+                document.getElementById('manualCheckUpdateBtn').addEventListener('click', async () => {
+                    const btn = document.getElementById('manualCheckUpdateBtn');
+                    const origText = btn.textContent;
+                    btn.disabled = true;
+                    btn.innerText = t('checking_btn_text');
+                    isManualCheck = true;
+                    try {
+                        const res = await fetch('/updater/check', { method: 'POST' });
+                        const j = await res.json();
+                        await new Promise(r => setTimeout(r, 500));
+                        isUpdating = true;
+                        await checkUpdaterStatusOnce();
+                        startUpdaterPolling();
+                    } catch(e) {
+                        showToast(t('check_failed'), true);
+                        isManualCheck = false;
+                    } finally {
+                        btn.disabled = false;
+                        btn.textContent = origText;
+                    }
+                });
+
+                document.getElementById('confirmUpdateBtn').addEventListener('click', async () => {
+                    try {
+                        await fetch('/updater/run', { method: 'POST' });
+                        isUpdating = true;
+                        checkUpdaterStatusOnce();
+                        startUpdaterPolling();
+                    } catch(e) {
+                        showToast(t('update_failed'), true);
+                    }
+                });
+
+                document.getElementById('closeUpdateCardBtn').addEventListener('click', () => {
+                    document.getElementById('updateCard').style.display = 'none';
+                    isUpdating = false;
+                });
+
+                // Run check on page load
+                checkUpdaterStatusOnce();
 
                 const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/logs');
                 const logs = document.getElementById('logs');
