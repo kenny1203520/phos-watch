@@ -460,6 +460,33 @@ def _source_extension_allowed(path: str, cfg) -> bool:
     return sc is not None
 
 
+def _cleanup_original(src: str, out: str, delete_original: bool, cfg: dict, ext_map: dict):
+    if os.path.normcase(src) != os.path.normcase(out):
+        if delete_original:
+            if os.path.exists(src):
+                os.remove(src)
+                logger.info('Deleted original file: %s', src)
+        elif cfg.get('archive_dir'):
+            archive_dir = cfg.get('archive_dir')
+            os.makedirs(archive_dir, exist_ok=True)
+            basename = os.path.basename(src)
+            if os.path.exists(src):
+                shutil.move(src, os.path.join(archive_dir, basename))
+                logger.info('Archived original file %s to %s', src, archive_dir)
+        else:
+            enable_aliases = cfg.get('enable_extension_aliases', True)
+            if enable_aliases and os.path.exists(src):
+                src_ext = _normalize_ext(os.path.splitext(src)[1])
+                canonical_ext = _resolve_extension(src_ext, ext_map)
+                if canonical_ext:
+                    src_dir = os.path.dirname(src)
+                    src_stem = Path(src).stem
+                    normalized_src_path = os.path.join(src_dir, f"{src_stem}.{canonical_ext}")
+                    if src != normalized_src_path:
+                        _rename_output_path(src, normalized_src_path)
+                        logger.info('Normalized original file extension: %s -> %s', src, normalized_src_path)
+
+
 def process_item(item, cfg):
     src = item.get('path')
     if not src:
@@ -498,10 +525,12 @@ def process_item(item, cfg):
             if is_rename:
                 if os.path.normcase(src) != os.path.normcase(unique_out) and is_same_file_content(src, unique_out):
                     logger.info('File %s is already renamed/present as %s', src, unique_out)
+                    _cleanup_original(src, unique_out, delete_original, cfg, ext_map)
                     return True
             else:
                 if os.path.getmtime(unique_out) >= os.path.getmtime(src):
                     logger.info('File %s is already converted/present as %s', src, unique_out)
+                    _cleanup_original(src, unique_out, delete_original, cfg, ext_map)
                     return True
 
         out = unique_out
@@ -528,7 +557,7 @@ def process_item(item, cfg):
                 success_magick = False
                 if cmd_base:
                     try:
-                        cmd = [cmd_base, src, out]
+                        cmd = [cmd_base, src, '-auto-orient', out]
                         subprocess.check_call(cmd)
                         logger.info('Converted %s -> %s', src, out)
                         success_magick = True
@@ -536,8 +565,13 @@ def process_item(item, cfg):
                         logger.warning('ImageMagick conversion failed for %s: %s. Trying Pillow fallback...', src, e)
 
                 if not success_magick:
-                    from PIL import Image
+                    from PIL import Image, ImageOps
                     with Image.open(src) as im:
+                        if hasattr(im, 'getexif'):
+                            try:
+                                im = ImageOps.exif_transpose(im)
+                            except Exception:
+                                pass
                         tgt_lower = target_format.lower()
                         if tgt_lower in ('jpg', 'jpeg'):
                             im = im.convert('RGB')
@@ -557,29 +591,7 @@ def process_item(item, cfg):
                     return False
 
         if success:
-            if os.path.normcase(src) != os.path.normcase(out):
-                if delete_original:
-                    if os.path.exists(src):
-                        os.remove(src)
-                        logger.info('Deleted original file: %s', src)
-                elif cfg.get('archive_dir'):
-                    archive_dir = cfg.get('archive_dir')
-                    os.makedirs(archive_dir, exist_ok=True)
-                    basename = os.path.basename(src)
-                    if os.path.exists(src):
-                        shutil.move(src, os.path.join(archive_dir, basename))
-                        logger.info('Archived original file %s to %s', src, archive_dir)
-                else:
-                    if enable_aliases and os.path.exists(src):
-                        src_ext = _normalize_ext(os.path.splitext(src)[1])
-                        canonical_ext = _resolve_extension(src_ext, ext_map)
-                        if canonical_ext:
-                            src_dir = os.path.dirname(src)
-                            src_stem = Path(src).stem
-                            normalized_src_path = os.path.join(src_dir, f"{src_stem}.{canonical_ext}")
-                            if src != normalized_src_path:
-                                _rename_output_path(src, normalized_src_path)
-                                logger.info('Normalized original file extension: %s -> %s', src, normalized_src_path)
+            _cleanup_original(src, out, delete_original, cfg, ext_map)
             return True
 
     elif enable_aliases:
@@ -595,6 +607,20 @@ def process_item(item, cfg):
         return True
 
     return False
+
+
+def _handle_failed_item(item, cfg):
+    if not isinstance(item, dict) or not item.get('path'):
+        return
+    path = item.get('path')
+    retry_count = item.get('retry_count', 0)
+    max_queue_retries = int(cfg.get('max_queue_retries', 5))
+    if retry_count < max_queue_retries:
+        logger.warning('Item processing failed, re-enqueuing to the end (retry %d/%d): %s', 
+                       retry_count + 1, max_queue_retries, path)
+        q.enqueue(path, retry_count=retry_count + 1)
+    else:
+        logger.error('Max queue retries (%d) reached, discarding item: %s', max_queue_retries, path)
 
 
 def run_worker(poll_interval=1):
@@ -623,8 +649,11 @@ def run_worker(poll_interval=1):
                     success = process_item(item, cfg)
                     if success:
                         logger.info('Successfully processed item: %s', item.get('path'))
+                    else:
+                        _handle_failed_item(item, cfg)
                 except Exception:
                     logger.exception('Error processing item %s', item)
+                    _handle_failed_item(item, cfg)
             else:
                 time.sleep(poll_interval)
         except Exception as e:

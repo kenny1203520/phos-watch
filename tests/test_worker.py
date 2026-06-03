@@ -331,5 +331,95 @@ def test_module_toggles_disabled(tmp_path, monkeypatch):
     assert src2.exists()
 
 
+def test_exif_orientation_preservation(tmp_path, monkeypatch):
+    src = tmp_path / "portrait.png"
+    from PIL import Image
+    # Create a landscape image on disk (width 20, height 10)
+    im = Image.new('RGB', (20, 10))
+    exif = im.getexif()
+    exif[274] = 6  # EXIF Orientation 6 (rotated 90 degrees CW)
+    im.save(src, format="PNG", exif=exif)
+
+    # disable ImageMagick to force Pillow fallback
+    monkeypatch.setattr(worker, '_find_imagemagick_command', lambda: None)
+
+    cfg = {'target_format': 'jpg', 'image_quality': 80}
+    item = {'path': str(src)}
+    out_path = Path(worker.rules.normalize_output_path(str(src), 'jpg'))
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        success = worker.process_item(item, cfg)
+        assert success is True
+        assert out_path.exists()
+        # Read the output image and verify that its size is transposed to (10, 20)
+        with Image.open(out_path) as out_im:
+            assert out_im.size == (10, 20)
+    finally:
+        if out_path.exists():
+            out_path.unlink()
+
+
+def test_failed_item_requeued(monkeypatch):
+    # Mock queue
+    enqueued_items = []
+    def mock_enqueue(path, retry_count=0):
+        enqueued_items.append((path, retry_count))
+
+    # We mock queue dequeue to return a file on first call, then raise KeyboardInterrupt
+    dequeue_calls = [0]
+    def mock_dequeue(timeout=0):
+        dequeue_calls[0] += 1
+        if dequeue_calls[0] == 1:
+            return {'id': '123', 'path': 'corrupt.jpg', 'retry_count': 1}
+        else:
+            raise KeyboardInterrupt()
+
+    monkeypatch.setattr(worker.q, 'enqueue', mock_enqueue)
+    monkeypatch.setattr(worker.q, 'dequeue', mock_dequeue)
+    monkeypatch.setattr(worker, 'process_item', lambda item, cfg: False)  # Force failure
+    monkeypatch.setattr(worker, 'load_config', lambda: {'max_queue_retries': 3})
+    monkeypatch.setattr(worker, 'load_config_if_changed', lambda: {'max_queue_retries': 3})
+    monkeypatch.setattr(worker.time, 'sleep', lambda sec: None)
+
+    try:
+        worker.run_worker()
+    except KeyboardInterrupt:
+        pass
+
+    # Check that the failed item was re-enqueued to the back of the queue with retry_count incremented
+    assert len(enqueued_items) == 1
+    assert enqueued_items[0] == ('corrupt.jpg', 2)
+
+
+def test_failed_item_discarded_on_max_retries(monkeypatch):
+    enqueued_items = []
+    def mock_enqueue(path, retry_count=0):
+        enqueued_items.append((path, retry_count))
+
+    dequeue_calls = [0]
+    def mock_dequeue(timeout=0):
+        dequeue_calls[0] += 1
+        if dequeue_calls[0] == 1:
+            return {'id': '123', 'path': 'corrupt.jpg', 'retry_count': 3}
+        else:
+            raise KeyboardInterrupt()
+
+    monkeypatch.setattr(worker.q, 'enqueue', mock_enqueue)
+    monkeypatch.setattr(worker.q, 'dequeue', mock_dequeue)
+    monkeypatch.setattr(worker, 'process_item', lambda item, cfg: False)  # Force failure
+    monkeypatch.setattr(worker, 'load_config', lambda: {'max_queue_retries': 3})
+    monkeypatch.setattr(worker, 'load_config_if_changed', lambda: {'max_queue_retries': 3})
+    monkeypatch.setattr(worker.time, 'sleep', lambda sec: None)
+
+    try:
+        worker.run_worker()
+    except KeyboardInterrupt:
+        pass
+
+    # Check that the item was discarded (not re-enqueued) because retry_count (3) >= max_queue_retries (3)
+    assert len(enqueued_items) == 0
+
+
 
 

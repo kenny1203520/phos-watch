@@ -30,8 +30,8 @@ def _ensure_qfile_dir():
         os.makedirs(qdir, exist_ok=True)
 
 
-def enqueue(path: str):
-    item_obj = {'id': uuid.uuid4().hex, 'path': path}
+def enqueue(path: str, retry_count: int = 0):
+    item_obj = {'id': uuid.uuid4().hex, 'path': path, 'retry_count': retry_count}
     item = json.dumps(item_obj)
     if r:
         try:
