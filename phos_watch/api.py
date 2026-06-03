@@ -326,240 +326,1147 @@ async def post_updater_run():
 
 @app.get('/')
 async def index():
-    html = '''
-    <html>
+    html = r'''
+    <!DOCTYPE html>
+    <html lang="zh-TW">
         <head>
-            <title data-i18n="title">phos-watch Admin</title>
+            <title data-i18n="title">phos-watch 管理介面</title>
             <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
             <link rel="icon" type="image/x-icon" href="/static/favicon.ico" />
             <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png" />
             <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png" />
             <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png" />
             <style>
-                body { font-family: Arial, sans-serif; margin: 16px; background: #f6f7fb; color: #1f2937; }
-                .grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
-                .card { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; box-shadow: 0 4px 16px rgba(0,0,0,.04); }
-                .muted { color: #6b7280; }
-                pre, textarea, input, select { width: 100%; box-sizing: border-box; }
-                pre { background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 10px; min-height: 120px; max-height: 400px; overflow-y: auto; }
-                textarea { min-height: 240px; font-family: Consolas, monospace; border-radius: 10px; border: 1px solid #cbd5e1; padding: 12px; }
-                input, select { border-radius: 10px; border: 1px solid #cbd5e1; padding: 10px 12px; }
-                button { border: 0; background: #2563eb; color: white; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
-                button.secondary { background: #475569; }
-                .row { display:flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-                .field { display: grid; gap: 8px; margin-bottom: 8px; }
-                .field label { font-weight: 600; }
-                .field-help { color: #64748b; font-size: 13px; }
-                .list-items { display: flex; flex-wrap: wrap; gap: 8px; min-height: 44px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 10px; background: #f8fafc; }
-                .list-empty { color: #94a3b8; align-self: center; }
-                .module { border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; background: #f8fafc; margin-bottom: 12px; }
-                .module h4 { margin: 0 0 8px 0; }
-                .item-list { display: grid; gap: 8px; }
-                .item-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px; border: 1px solid #dbeafe; border-radius: 8px; background: #ffffff; }
-                .item-main { flex: 1 1 360px; min-width: 220px; }
-                .mono { font-family: Consolas, monospace; }
-                .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #e2e8f0; color: #334155; }
-                .status-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: bold; text-decoration: none; }
-                .status-normal { background: #d1fae5; color: #065f46; }
-                .status-abnormal { background: #fee2e2; color: #991b1b; }
-                .status-offline { background: #f3f4f6; color: #374151; }
-                .chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 999px; background: #dbeafe; color: #1e3a8a; font-size: 14px; }
-                .chip button { background: transparent; color: inherit; padding: 0; border-radius: 999px; line-height: 1; font-size: 16px; }
-                button[disabled] { opacity: 0.6; cursor: not-allowed; }
-                .spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius:50%; animation: spin 1s linear infinite; vertical-align:middle; margin-right:6px; }
-                @keyframes spin { to { transform: rotate(360deg); } }
-                .lang { margin-left: auto; }
+                /* Google Fonts & Tailwind-like CSS resets */
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+                :root {
+                    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+                    --font-mono: 'JetBrains Mono', Consolas, monospace;
+
+                    /* Light Theme */
+                    --bg-app: #f8fafc;
+                    --bg-card: #ffffff;
+                    --border-color: #e2e8f0;
+                    --border-hover: #cbd5e1;
+                    --text-primary: #0f172a;
+                    --text-secondary: #475569;
+                    --text-muted: #64748b;
+
+                    --accent: #4f46e5;
+                    --accent-hover: #4338ca;
+                    --accent-light: #e0e7ff;
+                    --accent-text: #3730a3;
+
+                    --bg-input: #ffffff;
+                    --bg-module: #f8fafc;
+                    
+                    --success: #10b981;
+                    --success-light: #d1fae5;
+                    --success-text: #065f46;
+                    --success-rgb: 16, 185, 129;
+
+                    --danger: #ef4444;
+                    --danger-light: #fee2e2;
+                    --danger-text: #991b1b;
+                    --danger-rgb: 239, 68, 68;
+
+                    --warning: #f59e0b;
+                    --warning-light: #fef3c7;
+                    --warning-text: #854d0e;
+                    --warning-rgb: 245, 158, 11;
+
+                    --info: #0ea5e9;
+                    --info-light: #e0f2fe;
+                    --info-text: #0369a1;
+
+                    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+                    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+                    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.05), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+                    
+                    --radius-lg: 12px;
+                    --radius-md: 8px;
+                    --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+                    --transition-normal: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+
+                body.dark-mode {
+                    /* Dark Theme */
+                    --bg-app: #0b0f19;
+                    --bg-card: #151d30;
+                    --border-color: #22314d;
+                    --border-hover: #2e4266;
+                    --text-primary: #f8fafc;
+                    --text-secondary: #94a3b8;
+                    --text-muted: #64748b;
+
+                    --accent: #6366f1;
+                    --accent-hover: #4f46e5;
+                    --accent-light: #1e1b4b;
+                    --accent-text: #c7d2fe;
+
+                    --bg-input: #0f172a;
+                    --bg-module: #0f172a;
+
+                    --success: #10b981;
+                    --success-light: #064e3b;
+                    --success-text: #a7f3d0;
+
+                    --danger: #ef4444;
+                    --danger-light: #7f1d1d;
+                    --danger-text: #fca5a5;
+
+                    --warning: #f59e0b;
+                    --warning-light: #78350f;
+                    --warning-text: #fde68a;
+
+                    --info: #38bdf8;
+                    --info-light: #0c4a6e;
+                    --info-text: #e0f2fe;
+
+                    --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.2), 0 2px 4px -2px rgb(0 0 0 / 0.2);
+                    --shadow-md: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+                    --shadow-lg: 0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3);
+                }
+
+                * {
+                    box-sizing: border-box;
+                    margin: 0;
+                    padding: 0;
+                }
+
+                body {
+                    font-family: var(--font-sans);
+                    background-color: var(--bg-app);
+                    color: var(--text-primary);
+                    line-height: 1.5;
+                    padding-bottom: 100px;
+                    transition: background-color var(--transition-normal), color var(--transition-normal);
+                }
+
+                /* Layout structure */
+                .topbar {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    background: var(--bg-card);
+                    border-bottom: 1px solid var(--border-color);
+                    padding: 14px 24px;
+                    position: sticky;
+                    top: 0;
+                    z-index: 50;
+                    box-shadow: var(--shadow);
+                    transition: background-color var(--transition-normal), border-color var(--transition-normal);
+                }
+
+                .brand {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }
+
+                .brand h1 {
+                    font-size: 18px;
+                    font-weight: 700;
+                    letter-spacing: -0.025em;
+                }
+
+                .brand-badge {
+                    background: var(--accent-light);
+                    color: var(--accent-text);
+                    font-size: 11px;
+                    font-weight: 600;
+                    padding: 2px 6px;
+                    border-radius: 6px;
+                }
+
+                .controls-right {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                }
+
+                .lang-select {
+                    background: var(--bg-input);
+                    color: var(--text-primary);
+                    border: 1px solid var(--border-color);
+                    border-radius: var(--radius-md);
+                    padding: 6px 12px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    outline: none;
+                    cursor: pointer;
+                    transition: border-color var(--transition-fast);
+                }
+                .lang-select:hover {
+                    border-color: var(--border-hover);
+                }
+
+                .theme-toggle {
+                    background: var(--bg-input);
+                    border: 1px solid var(--border-color);
+                    color: var(--text-primary);
+                    width: 34px;
+                    height: 34px;
+                    border-radius: var(--radius-md);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    transition: border-color var(--transition-fast), background-color var(--transition-fast);
+                }
+                .theme-toggle:hover {
+                    border-color: var(--border-hover);
+                    background: var(--bg-module);
+                }
+
+                .dashboard {
+                    display: grid;
+                    grid-template-columns: 1fr;
+                    gap: 20px;
+                    max-width: 1400px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }
+
+                @media (min-width: 1024px) {
+                    .dashboard {
+                        grid-template-columns: 420px 1fr;
+                    }
+                }
+
+                .column {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 20px;
+                }
+
+                /* Cards & Modules styling */
+                .card {
+                    background: var(--bg-card);
+                    border: 1px solid var(--border-color);
+                    border-radius: var(--radius-lg);
+                    padding: 20px;
+                    box-shadow: var(--shadow);
+                    transition: background-color var(--transition-normal), border-color var(--transition-normal), box-shadow var(--transition-normal);
+                }
+
+                .card-title {
+                    font-size: 15px;
+                    font-weight: 700;
+                    margin-bottom: 16px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    letter-spacing: -0.01em;
+                }
+
+                .card-subtitle {
+                    color: var(--text-muted);
+                    font-size: 13px;
+                    margin-top: -12px;
+                    margin-bottom: 16px;
+                }
+
+                .btn {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: var(--accent);
+                    color: #ffffff;
+                    border: 0;
+                    border-radius: var(--radius-md);
+                    padding: 8px 14px;
+                    font-size: 13px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: background-color var(--transition-fast), transform 0.1s ease;
+                    outline: none;
+                    gap: 6px;
+                }
+                .btn:hover {
+                    background: var(--accent-hover);
+                }
+                .btn:active {
+                    transform: scale(0.98);
+                }
+                .btn.secondary {
+                    background: var(--bg-input);
+                    color: var(--text-primary);
+                    border: 1px solid var(--border-color);
+                }
+                .btn.secondary:hover {
+                    border-color: var(--border-hover);
+                    background: var(--bg-module);
+                }
+                .btn.danger {
+                    background: var(--danger);
+                }
+                .btn.danger:hover {
+                    background: #dc2626;
+                }
+                .btn.sm {
+                    padding: 4px 10px;
+                    font-size: 12px;
+                    border-radius: 6px;
+                }
+                .btn:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                    transform: none !important;
+                }
+
+                /* Status Indicators */
+                .status-group {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                }
+
+                .status-item {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 10px 14px;
+                    background: var(--bg-module);
+                    border-radius: var(--radius-md);
+                    border: 1px solid var(--border-color);
+                }
+
+                .status-label {
+                    font-size: 13px;
+                    font-weight: 600;
+                    color: var(--text-secondary);
+                }
+
+                .badge-dot {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 12px;
+                    font-weight: 700;
+                    padding: 3px 10px;
+                    border-radius: 999px;
+                }
+
+                .dot {
+                    width: 7px;
+                    height: 7px;
+                    border-radius: 50%;
+                }
+
+                .status-normal {
+                    background: var(--success-light);
+                    color: var(--success-text);
+                }
+                .status-normal .dot {
+                    background: var(--success);
+                    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+                    animation: pulse-success 2s infinite;
+                }
+
+                .status-abnormal {
+                    background: var(--danger-light);
+                    color: var(--danger-text);
+                }
+                .status-abnormal .dot {
+                    background: var(--danger);
+                    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+                    animation: pulse-danger 2s infinite;
+                }
+
+                .status-offline {
+                    background: var(--border-color);
+                    color: var(--text-muted);
+                }
+                .status-offline .dot {
+                    background: var(--text-muted);
+                }
+
+                @keyframes pulse-success {
+                    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+                    70% { transform: scale(1); box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
+                    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+                }
+
+                @keyframes pulse-danger {
+                    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+                    70% { transform: scale(1); box-shadow: 0 0 0 5px rgba(239, 68, 68, 0); }
+                    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+                }
+
+                /* Queue style */
+                .queue-container {
+                    max-height: 250px;
+                    overflow-y: auto;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                    padding-right: 4px;
+                }
+
+                .queue-empty {
+                    text-align: center;
+                    color: var(--text-muted);
+                    font-size: 13px;
+                    padding: 24px 0;
+                }
+
+                .queue-item {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 8px 12px;
+                    background: var(--bg-module);
+                    border: 1px solid var(--border-color);
+                    border-radius: var(--radius-md);
+                }
+
+                .queue-meta {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 2px;
+                }
+
+                .queue-filename {
+                    font-size: 13px;
+                    font-weight: 600;
+                    word-break: break-all;
+                }
+
+                .queue-status {
+                    font-size: 11px;
+                    color: var(--text-muted);
+                    font-family: var(--font-mono);
+                }
+
+                /* Settings forms styling */
+                .settings-module {
+                    border: 1px solid var(--border-color);
+                    border-radius: var(--radius-md);
+                    padding: 16px;
+                    background: var(--bg-module);
+                    margin-bottom: 16px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 14px;
+                }
+                .settings-module:last-child {
+                    margin-bottom: 0;
+                }
+
+                .settings-module-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    border-bottom: 1px solid var(--border-color);
+                    padding-bottom: 8px;
+                }
+
+                .settings-module-header h4 {
+                    font-size: 14px;
+                    font-weight: 700;
+                }
+
+                .form-group {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 6px;
+                }
+
+                .form-group label {
+                    font-size: 12px;
+                    font-weight: 600;
+                    color: var(--text-secondary);
+                }
+
+                .input-text, select {
+                    background: var(--bg-input);
+                    color: var(--text-primary);
+                    border: 1px solid var(--border-color);
+                    border-radius: var(--radius-md);
+                    padding: 8px 12px;
+                    font-size: 13px;
+                    outline: none;
+                    width: 100%;
+                    transition: border-color var(--transition-fast);
+                }
+                .input-text:focus, select:focus {
+                    border-color: var(--accent);
+                }
+
+                /* Extension alias / Paths Chip elements */
+                .chips-container {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                    min-height: 40px;
+                    padding: 10px;
+                    background: var(--bg-input);
+                    border: 1px solid var(--border-color);
+                    border-radius: var(--radius-md);
+                }
+
+                .chip {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    padding: 4px 10px;
+                    border-radius: 999px;
+                    background: var(--accent-light);
+                    color: var(--accent-text);
+                    font-size: 12px;
+                    font-weight: 500;
+                    animation: chip-pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                }
+
+                .chip-desc {
+                    opacity: 0.85;
+                    font-size: 10px;
+                    border-left: 1px solid currentColor;
+                    padding-left: 6px;
+                }
+
+                .chip button {
+                    background: transparent;
+                    border: 0;
+                    color: inherit;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: bold;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 14px;
+                    height: 14px;
+                    border-radius: 50%;
+                }
+                .chip button:hover {
+                    background: rgba(0, 0, 0, 0.1);
+                }
+
+                @keyframes chip-pop {
+                    0% { transform: scale(0.8); opacity: 0; }
+                    100% { transform: scale(1); opacity: 1; }
+                }
+
+                .list-empty-chip {
+                    color: var(--text-muted);
+                    font-size: 12px;
+                    align-self: center;
+                }
+
+                .grid-2 {
+                    display: grid;
+                    grid-template-columns: 1fr;
+                    gap: 12px;
+                }
+
+                @media (min-width: 640px) {
+                    .grid-2 {
+                        grid-template-columns: 1fr 1fr;
+                    }
+                    .grid-4 {
+                        display: grid;
+                        grid-template-columns: repeat(4, 1fr);
+                        gap: 12px;
+                    }
+                }
+
+                /* Checkbox Grid for sources list */
+                .extension-checkbox-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+                    gap: 8px;
+                    padding: 12px;
+                    background: var(--bg-input);
+                    border: 1px solid var(--border-color);
+                    border-radius: var(--radius-md);
+                }
+
+                .checkbox-card {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 6px 10px;
+                    border-radius: var(--radius-md);
+                    border: 1px solid var(--border-color);
+                    background: var(--bg-card);
+                    cursor: pointer;
+                    user-select: none;
+                    transition: border-color var(--transition-fast), background-color var(--transition-fast);
+                }
+
+                .checkbox-card:hover {
+                    border-color: var(--border-hover);
+                }
+
+                .checkbox-card input {
+                    cursor: pointer;
+                }
+
+                .checkbox-card.active {
+                    background: var(--accent-light);
+                    border-color: var(--accent);
+                    color: var(--accent-text);
+                }
+
+                .checkbox-row {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    cursor: pointer;
+                    user-select: none;
+                    font-size: 13px;
+                    font-weight: 500;
+                }
+
+                /* Terminal style logs */
+                .terminal-card {
+                    background: #090d16;
+                    border: 1px solid #1e293b;
+                    border-radius: var(--radius-lg);
+                    color: #e2e8f0;
+                    padding: 16px;
+                    box-shadow: var(--shadow-lg);
+                }
+
+                .terminal-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    border-bottom: 1px solid #1e293b;
+                    padding-bottom: 10px;
+                    margin-bottom: 12px;
+                }
+
+                .terminal-title {
+                    font-size: 13px;
+                    font-weight: 700;
+                    color: #94a3b8;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-family: var(--font-mono);
+                }
+
+                .terminal-status-light {
+                    width: 6px;
+                    height: 6px;
+                    border-radius: 50%;
+                    background: #10b981;
+                    box-shadow: 0 0 8px #10b981;
+                }
+
+                .terminal-actions {
+                    display: flex;
+                    gap: 8px;
+                }
+
+                .terminal-btn {
+                    background: #131b2e;
+                    border: 1px solid #1e293b;
+                    color: #94a3b8;
+                    padding: 4px 8px;
+                    font-size: 11px;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                    font-weight: 500;
+                    transition: border-color var(--transition-fast), color var(--transition-fast);
+                }
+                .terminal-btn:hover {
+                    border-color: #3b82f6;
+                    color: #f8fafc;
+                }
+                .terminal-btn.active {
+                    background: #1e1b4b;
+                    border-color: #6366f1;
+                    color: #a5b4fc;
+                }
+
+                .terminal-body {
+                    background: #05070c;
+                    border-radius: var(--radius-md);
+                    padding: 12px;
+                    height: 250px;
+                    overflow-y: auto;
+                    font-family: var(--font-mono);
+                    font-size: 12px;
+                    line-height: 1.6;
+                    white-space: pre-wrap;
+                    word-break: break-all;
+                    border: 1px solid #111827;
+                }
+
+                /* Sticky Action Bar */
+                .sticky-action-bar {
+                    position: fixed;
+                    bottom: 0;
+                    left: 0;
+                    right: 0;
+                    background: var(--bg-card);
+                    border-top: 1px solid var(--border-color);
+                    padding: 16px 24px;
+                    box-shadow: 0 -10px 15px -3px rgb(0 0 0 / 0.05);
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    z-index: 100;
+                    transform: translateY(100%);
+                    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), background-color var(--transition-normal), border-color var(--transition-normal);
+                }
+                .sticky-action-bar.active {
+                    transform: translateY(0);
+                }
+
+                .sticky-info {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    color: var(--text-secondary);
+                    font-size: 13px;
+                    font-weight: 500;
+                }
+
+                .sticky-info-dot {
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 50%;
+                    background: var(--warning);
+                }
+
+                .sticky-buttons {
+                    display: flex;
+                    gap: 10px;
+                }
+
+                /* Toast notification */
+                .toast-box {
+                    position: fixed;
+                    bottom: 24px;
+                    right: 24px;
+                    z-index: 1000;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                    pointer-events: none;
+                }
+
+                .toast-item {
+                    pointer-events: auto;
+                    background: var(--bg-card);
+                    border: 1px solid var(--border-color);
+                    border-left: 4px solid var(--accent);
+                    color: var(--text-primary);
+                    padding: 12px 18px;
+                    border-radius: var(--radius-md);
+                    box-shadow: var(--shadow-lg);
+                    font-size: 13px;
+                    font-weight: 500;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    min-width: 260px;
+                    animation: toast-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+                    transition: opacity 0.2s, transform 0.2s;
+                }
+                .toast-item.error {
+                    border-left-color: var(--danger);
+                }
+                .toast-item.success {
+                    border-left-color: var(--success);
+                }
+
+                @keyframes toast-slide-in {
+                    0% { transform: translateX(100%) scale(0.9); opacity: 0; }
+                    100% { transform: translateX(0) scale(1); opacity: 1; }
+                }
+
+                /* Inline Warning banner */
+                .warning-banner {
+                    display: flex;
+                    gap: 8px;
+                    padding: 10px 14px;
+                    background: var(--warning-light);
+                    color: var(--warning-text);
+                    border-radius: var(--radius-md);
+                    font-size: 12px;
+                    font-weight: 500;
+                }
+
+                /* Update notice Card */
+                .update-card-alert {
+                    border: 1px dashed var(--warning);
+                    background: var(--warning-light) !important;
+                    color: var(--warning-text);
+                }
+                .update-card-alert h3 {
+                    font-size: 15px;
+                    font-weight: 700;
+                    margin-bottom: 6px;
+                }
+
+                .progress-bar-container {
+                    width: 100%;
+                    background: rgba(0, 0, 0, 0.1);
+                    border-radius: 999px;
+                    height: 8px;
+                    margin-top: 10px;
+                    overflow: hidden;
+                }
+                .progress-bar-fill {
+                    background: var(--warning);
+                    height: 100%;
+                    width: 0%;
+                    transition: width 0.3s ease;
+                }
+                body.dark-mode .progress-bar-container {
+                    background: rgba(255, 255, 255, 0.1);
+                }
             </style>
-            <!-- i18next (CDN) -->
+            <!-- i18next & Language Setup -->
             <script src="https://unpkg.com/i18next@22.4.15/dist/umd/i18next.min.js"></script>
             <script src="https://unpkg.com/i18next-http-backend@4.0.0/i18nextHttpBackend.min.js"></script>
             <script src="https://unpkg.com/i18next-browser-languagedetector@6.1.6/i18nextBrowserLanguageDetector.min.js"></script>
         </head>
         <body>
-            <div style="display:flex; align-items:center; gap:12px;">
-                <h2 data-i18n="heading_admin">phos-watch Admin</h2>
-                <select id="langSel" class="lang" aria-label="language selector">
-                    <option value="zh-TW">中文 (繁體)</option>
-                    <option value="en">English</option>
-                </select>
-            </div>
-            <p class="muted" data-i18n="desc_watch_paths">監看路徑、可轉換格式與副檔名標準化都可在此調整。</p>
-            <div class="grid">
-                <!-- Update card -->
-                <div class="card" id="updateCard" style="display:none; border: 1px solid #fed7aa; background: #fffbeb;">
-                    <h3 style="margin-top:0;" data-i18n="update_card_title">應用程式更新</h3>
-                    <div id="updateStatusMsg" style="font-weight: 500;">...</div>
-                    <div id="updateNotesSection" style="margin-top:8px; display:none;">
-                        <strong data-i18n="release_notes_label">釋出說明：</strong>
-                        <pre id="updateReleaseNotes" style="white-space: pre-wrap; background: #fafaf9; color: #44403c; border: 1px solid #e7e5e4; min-height: 50px; max-height: 150px; margin-top: 4px; padding: 8px; font-family: sans-serif;"></pre>
-                    </div>
-                    <div id="updateProgressContainer" style="display:none; width: 100%; background: #e2e8f0; border-radius: 999px; height: 10px; margin-top: 10px; overflow: hidden;">
-                        <div id="updateProgressBar" style="width: 0%; height: 100%; background: #f97316; transition: width 0.3s;"></div>
-                    </div>
-                    <div class="row" style="margin-top:12px;" id="updateCardActions">
-                        <button type="button" id="confirmUpdateBtn" data-i18n="confirm_update_btn">安裝更新</button>
-                        <button type="button" id="closeUpdateCardBtn" class="secondary" data-i18n="close_btn">關閉</button>
-                    </div>
+            <!-- Top Navigation Bar -->
+            <div class="topbar">
+                <div class="brand">
+                    <h1 data-i18n="heading_admin">phos-watch 管理介面</h1>
+                    <span class="brand-badge" id="badgeAppVersion">unknown version</span>
                 </div>
-
-                <div class="card">
-                    <div class="row">
-                        <strong data-i18n="queue_length_label">Queue length:</strong> <span id="qlen">...</span>
-                        <strong data-i18n="pause_state_label">Pause state:</strong> <span id="pausedState">...</span>
-                        <strong data-i18n="watcher_status_label">Watcher status:</strong> <span id="watcherStatus" class="status-badge status-offline">...</span>
-                        <strong data-i18n="worker_status_label">Worker status:</strong> <span id="workerStatus" class="status-badge status-offline">...</span>
-                        <strong data-i18n="app_version_label">Version:</strong> <span id="appVersion">...</span> <span id="updateBadge" style="display:none;" class="badge"></span>
-                        <button type="button" id="manualCheckUpdateBtn" class="secondary" style="padding: 4px 8px; font-size: 12px; margin-left: 8px;" data-i18n="check_update_btn">檢查更新</button>
-                        <button id="togglePause" data-i18n="toggle_pause">Toggle Pause</button>
-                        <button id="refreshQueue" class="secondary" data-i18n="refresh_queue">Refresh Queue</button>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <h3 data-i18n="queue_items">Queue Items</h3>
-                    <div id="queueItems" data-i18n="loading">Loading...</div>
-                </div>
-
-                <div class="card">
-                    <h3 data-i18n="configuration">Configuration</h3>
-                    <p class="muted" data-i18n="config_desc">依照三個步驟設定：監聽路徑、轉檔方案、副檔名規範。</p>
-                    <form id="configForm">
-                        <div class="module">
-                            <h4 data-i18n="module_watch_title">1) 監聽路徑與遞迴設定</h4>
-                            <div class="field-help" data-i18n="module_watch_desc">每一列是一個路徑，可獨立設定是否遞迴監聽。</div>
-                            <div id="watch_paths_rows" class="item-list"></div>
-                            <div class="row" style="margin-top:8px;">
-                                <input type="text" id="watch_path_input" data-i18n-placeholder="watch_paths_placeholder" placeholder="一次新增一個監看資料夾" />
-                                <label><input type="checkbox" id="watch_path_recursive" /> <span data-i18n="recursive_watch">遞迴監看</span></label>
-                                <button type="button" id="watch_path_add" class="secondary" data-i18n="add_item">新增</button>
-                            </div>
-                        </div>
-
-                        <div class="module">
-                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                                <h4 style="margin: 0;" data-i18n="module_scheme_title">2) 轉檔方案</h4>
-                                <label style="font-weight: 600;"><input type="checkbox" id="enable_conversion_schemes" /> <span data-i18n="enable_module">啟用此功能</span></label>
-                            </div>
-                            <div class="field-help" data-i18n="module_scheme_desc">可建立多個方案。每個方案包含來源副檔名、目標副檔名與是否刪除原檔。</div>
-                            <div id="schemes_rows" class="item-list"></div>
-                            <div class="row" style="margin-top:8px;">
-                                <input type="text" id="scheme_name" data-i18n-placeholder="scheme_name_placeholder" placeholder="方案名稱（例如：手機照片）" />
-                            </div>
-                            <div class="field" style="margin-top: 8px; display: flex; flex-direction: column; gap: 4px;">
-                                <label style="font-weight: 600;" data-i18n="source_extensions_label">來源副檔名</label>
-                                <div id="scheme_sources_checkboxes" style="display: flex; flex-wrap: wrap; gap: 10px; padding: 10px; background: #fff; border: 1px solid #cbd5e1; border-radius: 10px;">
-                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="jpg" /> jpg</label>
-                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="jpeg" /> jpeg</label>
-                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="png" /> png</label>
-                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="webp" /> webp</label>
-                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="gif" /> gif</label>
-                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="bmp" /> bmp</label>
-                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="tiff" /> tiff</label>
-                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="tif" /> tif</label>
-                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="heic" /> heic</label>
-                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="heif" /> heif</label>
-                                    <label style="font-weight: normal; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" name="src_ext" value="avif" /> avif</label>
-                                </div>
-                                <input type="text" id="scheme_sources_custom" data-i18n-placeholder="scheme_sources_custom_placeholder" placeholder="自訂其他副檔名，逗號分隔，例如 raw" style="margin-top: 4px;" />
-                                <div class="field-help" style="color: #b45309; margin-top: 4px;" data-i18n="custom_ext_warning">⚠️ 提示：自訂副檔名不一定支援轉檔，僅限已知相容格式。</div>
-                            </div>
-                            <div class="row" style="margin-top: 8px;">
-                                <select id="scheme_target"></select>
-                                <input type="text" id="scheme_target_custom" data-i18n-placeholder="target_format_custom_placeholder" placeholder="輸入副檔名，例如 JPG 或 jpeg" />
-                                <label><input type="checkbox" id="scheme_delete_original" /> <span data-i18n="delete_original_label">轉檔後刪除原檔</span></label>
-                                <button type="button" id="scheme_add" class="secondary" data-i18n="add_item">新增</button>
-                            </div>
-                        </div>
-
-                        <div class="module">
-                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                                <h4 style="margin: 0;" data-i18n="module_alias_title">3) 副檔名規範</h4>
-                                <label style="font-weight: 600;"><input type="checkbox" id="enable_extension_aliases" /> <span data-i18n="enable_module">啟用此功能</span></label>
-                            </div>
-                            <div class="field-help" data-i18n="module_alias_desc">設定同一格式可能出現的多種副檔名，系統會用來判斷與正規化。</div>
-                            <div id="alias_rows" class="item-list"></div>
-                            <div class="row" style="margin-top:8px;">
-                                <input type="text" id="alias_canonical" data-i18n-placeholder="alias_canonical_placeholder" placeholder="標準副檔名，例如 jpg" />
-                                <input type="text" id="alias_values" data-i18n-placeholder="alias_values_placeholder" placeholder="別名，逗號分隔，例如 jpeg,JPG,JPEG" />
-                                <button type="button" id="alias_add" class="secondary" data-i18n="add_item">新增</button>
-                            </div>
-                        </div>
-
-                        <div class="module">
-                            <h4 data-i18n="module_log_title">4) 日誌備份與輪轉設定</h4>
-                            <div class="field-help" data-i18n="module_log_desc">設定日誌檔案的保留上限，若超過限制將會自動輪轉備份。</div>
-                            <div class="row" style="margin-top:8px; display: flex; gap: 16px; flex-wrap: wrap;">
-                                <div class="field" style="flex: 1 1 180px;">
-                                    <label for="log_max_lines" data-i18n="log_max_lines_label">最大行數 (0表示不限制)</label>
-                                    <input type="number" id="log_max_lines" min="0" placeholder="例如：10000" />
-                                </div>
-                                <div class="field" style="flex: 1 1 180px;">
-                                    <label for="log_max_size_kb" data-i18n="log_max_size_kb_label">最大大小 (KB, 0表示不限制)</label>
-                                    <input type="number" id="log_max_size_kb" min="0" placeholder="例如：1024" />
-                                </div>
-                                <div class="field" style="flex: 1 1 180px;">
-                                    <label for="log_max_hours" data-i18n="log_max_hours_label">最大時間 (小時, 0表示不限制)</label>
-                                    <input type="number" id="log_max_hours" min="0" step="0.5" placeholder="例如：24" />
-                                </div>
-                                <div class="field" style="flex: 1 1 180px;">
-                                    <label for="log_backup_count" data-i18n="log_backup_count_label">保留備份檔個數</label>
-                                    <input type="number" id="log_backup_count" min="0" placeholder="例如：5" />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="module">
-                            <h4 data-i18n="module_update_title">5) 更新與排程設定</h4>
-                            <div class="field-help" data-i18n="module_update_desc">設定自動檢查更新的排程與偏好。</div>
-                            <div class="row" style="margin-top:8px; display: flex; gap: 16px; flex-wrap: wrap;">
-                                <label style="font-weight: 600; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="update_check_on_startup" /> <span data-i18n="update_check_on_startup_label">啟用啟動時檢查更新</span></label>
-                                <label style="font-weight: 600; display: inline-flex; align-items: center; gap: 4px;"><input type="checkbox" id="update_include_prerelease" /> <span data-i18n="update_include_prerelease_label">接收測試版/預發布版更新 (Beta/RC)</span></label>
-                            </div>
-                            <div class="row" style="margin-top:8px; display: flex; gap: 16px; flex-wrap: wrap;">
-                                <div class="field" style="flex: 1 1 180px;">
-                                    <label for="update_check_frequency" data-i18n="update_check_frequency_label">檢查頻率</label>
-                                    <select id="update_check_frequency">
-                                        <option value="none" data-i18n="freq_none">無 (不自動檢查)</option>
-                                        <option value="hourly" data-i18n="freq_hourly">每隔幾小時</option>
-                                        <option value="daily" data-i18n="freq_daily">每隔幾天</option>
-                                        <option value="weekly" data-i18n="freq_weekly">每隔幾週</option>
-                                        <option value="specific_time" data-i18n="freq_specific_time">每日特定時間</option>
-                                    </select>
-                                </div>
-                                <div class="field" id="update_interval_field" style="flex: 1 1 180px;">
-                                    <label for="update_check_interval" data-i18n="update_check_interval_label">檢查間隔數值</label>
-                                    <input type="number" id="update_check_interval" min="1" value="1" />
-                                </div>
-                                <div class="field" id="update_time_field" style="flex: 1 1 180px; display:none;">
-                                    <label for="update_check_time" data-i18n="update_check_time_label">每日檢查時間 (HH:MM)</label>
-                                    <input type="text" id="update_check_time" placeholder="例如：02:00" />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <button type="button" id="loadConfig" class="secondary" data-i18n="load_config">Load Config</button>
-                            <button type="button" id="saveConfig" data-i18n="save_config">Save Config</button>
-                        </div>
-                    </form>
-                </div>
-
-                <div class="card">
-                    <h3 data-i18n="logs">Logs</h3>
-                    <pre id="logs"></pre>
+                <div class="controls-right">
+                    <select id="langSel" class="lang-select" aria-label="language selector">
+                        <option value="zh-TW">中文 (繁體)</option>
+                        <option value="en">English</option>
+                    </select>
+                    <button class="theme-toggle" id="themeToggle" title="Toggle Theme" aria-label="toggle theme button">
+                        <!-- Sun Icon -->
+                        <svg id="sunIcon" style="display:none; width: 18px; height: 18px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z"></path></svg>
+                        <!-- Moon Icon -->
+                        <svg id="moonIcon" style="display:none; width: 18px; height: 18px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                    </button>
                 </div>
             </div>
-                <div id="toast" style="position:fixed; right:16px; bottom:16px; z-index:9999;"></div>
 
+            <div class="dashboard">
+                <!-- Left Column (Status & Queue & Logs) -->
+                <div class="column">
+                    <!-- Status Card -->
+                    <div class="card">
+                        <div class="card-title">
+                            <span data-i18n="status_dashboard">系統狀態</span>
+                            <button type="button" class="btn secondary sm" id="togglePause" data-i18n="toggle_pause">切換暫停</button>
+                        </div>
+                        <div class="status-group">
+                            <div class="status-item">
+                                <span class="status-label" data-i18n="queue_length_label">佇列長度：</span>
+                                <span id="qlen" style="font-weight: 700; font-size: 15px;">...</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label" data-i18n="pause_state_label">暫停狀態：</span>
+                                <span id="pausedState" style="font-weight: 700; font-size: 13px;">...</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label" data-i18n="watcher_status_label">監聽器狀態：</span>
+                                <span id="watcherStatus" class="badge-dot status-offline"><span class="dot"></span><span class="label-text">...</span></span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label" data-i18n="worker_status_label">處理器狀態：</span>
+                                <span id="workerStatus" class="badge-dot status-offline"><span class="dot"></span><span class="label-text">...</span></span>
+                            </div>
+                        </div>
+                        <div style="margin-top:16px; display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:12px; font-weight:600; color:var(--text-secondary); display:inline-flex; align-items:center; gap:6px;">
+                                <span data-i18n="app_version_label">版本號：</span>
+                                <span id="appVersion" style="font-family: var(--font-mono);">...</span>
+                                <span id="updateBadge" style="display:none; padding: 2px 6px; font-size: 10px; font-weight: bold; border-radius: 999px; background: var(--warning-light); color: var(--warning-text);"></span>
+                            </span>
+                            <button type="button" class="btn secondary sm" id="manualCheckUpdateBtn" data-i18n="check_update_btn">手動檢查更新</button>
+                        </div>
+                    </div>
+
+                    <!-- Update Alert Card -->
+                    <div class="card update-card-alert" id="updateCard" style="display:none;">
+                        <h3 data-i18n="update_card_title">應用程式更新</h3>
+                        <div id="updateStatusMsg" style="font-size: 13px; font-weight: 600;">...</div>
+                        
+                        <div id="updateNotesSection" style="margin-top:10px; display:none;">
+                            <strong style="font-size: 12px;" data-i18n="release_notes_label">釋出說明：</strong>
+                            <pre id="updateReleaseNotes" style="white-space: pre-wrap; background: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-primary); max-height: 120px; overflow-y: auto; padding: 8px; font-size: 12px; font-family: var(--font-sans); margin-top:4px; border-radius: 6px;"></pre>
+                        </div>
+
+                        <div id="updateProgressContainer" class="progress-bar-container" style="display:none;">
+                            <div id="updateProgressBar" class="progress-bar-fill"></div>
+                        </div>
+
+                        <div style="margin-top:14px; display:flex; gap:8px;" id="updateCardActions">
+                            <button type="button" class="btn sm" id="confirmUpdateBtn" data-i18n="confirm_update_btn">安裝更新</button>
+                            <button type="button" class="btn secondary sm" id="closeUpdateCardBtn" data-i18n="close_btn">關閉</button>
+                        </div>
+                    </div>
+
+                    <!-- Queue Card -->
+                    <div class="card">
+                        <div class="card-title">
+                            <span data-i18n="queue_items">佇列項目</span>
+                            <button type="button" class="btn secondary sm" id="refreshQueue" data-i18n="refresh_queue">重新整理佇列</button>
+                        </div>
+                        <div class="queue-container" id="queueItems">
+                            <div class="queue-empty" data-i18n="loading">載入中...</div>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Terminal Logs -->
+                    <div class="terminal-card">
+                        <div class="terminal-header">
+                            <div class="terminal-title">
+                                <span class="terminal-status-light"></span>
+                                <span data-i18n="logs">日誌</span>
+                            </div>
+                            <div class="terminal-actions">
+                                <button type="button" class="terminal-btn active" id="terminalAutoScroll" title="Toggle Auto-Scroll">
+                                    <svg style="width:12px; height:12px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 13l-7 7-7-7m14-6l-7 7-7-7"></path></svg>
+                                    Auto
+                                </button>
+                                <button type="button" class="terminal-btn" id="terminalCopy" title="Copy Logs">
+                                    <svg style="width:12px; height:12px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                                    Copy
+                                </button>
+                                <button type="button" class="terminal-btn" id="terminalClear" title="Clear Panel">
+                                    <svg style="width:12px; height:12px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    Clear
+                                </button>
+                            </div>
+                        </div>
+                        <div class="terminal-body" id="logs"></div>
+                    </div>
+                </div>
+
+                <!-- Right Column (Settings Form) -->
+                <div class="column">
+                    <div class="card">
+                        <div class="card-title" data-i18n="configuration">設定</div>
+                        <div class="card-subtitle" data-i18n="config_desc">可調整監看資料夾、來源副檔名、精確目標副檔名，以及副檔名對應。</div>
+                        
+                        <form id="configForm">
+                            <!-- 1) Watch Paths Section -->
+                            <div class="settings-module">
+                                <div class="settings-module-header">
+                                    <h4 data-i18n="module_watch_title">1) 監聽路徑與遞迴設定</h4>
+                                </div>
+                                <p class="card-subtitle" style="margin: 0;" data-i18n="module_watch_desc">每一列是一個路徑，可獨立設定是否遞迴監聽。</p>
+                                
+                                <div class="chips-container" id="watch_paths_rows">
+                                    <span class="list-empty-chip" data-i18n="list_empty">尚無項目</span>
+                                </div>
+
+                                <div style="display:flex; gap:8px; align-items:center;">
+                                    <input type="text" id="watch_path_input" class="input-text" data-i18n-placeholder="watch_paths_placeholder" placeholder="一次新增一個監看資料夾" style="flex:1;" />
+                                    <label class="checkbox-row" style="white-space:nowrap;">
+                                        <input type="checkbox" id="watch_path_recursive" />
+                                        <span data-i18n="recursive_watch">遞迴監看</span>
+                                    </label>
+                                    <button type="button" id="watch_path_cancel" class="btn secondary" data-i18n="cancel" style="display:none;">取消</button>
+                                    <button type="button" id="watch_path_add" class="btn secondary" data-i18n="add_item">新增</button>
+                                </div>
+                            </div>
+
+                            <!-- 2) Conversion Schemes Section -->
+                            <div class="settings-module">
+                                <div class="settings-module-header">
+                                    <h4 data-i18n="module_scheme_title">2) 轉檔方案</h4>
+                                    <label class="checkbox-row">
+                                        <input type="checkbox" id="enable_conversion_schemes" class="config-input" />
+                                        <span data-i18n="enable_module">啟用此功能</span>
+                                    </label>
+                                </div>
+                                <p class="card-subtitle" style="margin: 0;" data-i18n="module_scheme_desc">可建立多個方案。每個方案包含來源副檔名、目標副檔名與是否刪除原檔。</p>
+                                
+                                <div id="schemes_rows" style="display:flex; flex-direction:column; gap:8px;"></div>
+
+                                <!-- Scheme add area -->
+                                <div style="border: 1px dashed var(--border-color); padding: 12px; border-radius: var(--radius-md); display:flex; flex-direction:column; gap:12px; background: var(--bg-card);">
+                                    <div class="form-group">
+                                        <label for="scheme_name" data-i18n="scheme_name_label" style="font-weight:600;">方案名稱</label>
+                                        <input type="text" id="scheme_name" class="input-text" data-i18n-placeholder="scheme_name_placeholder" placeholder="方案名稱（例如：手機照片）" />
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label data-i18n="source_extensions_label">來源副檔名</label>
+                                        <div id="scheme_sources_checkboxes" class="extension-checkbox-grid">
+                                            <label class="checkbox-card"><input type="checkbox" name="src_ext" value="jpg" /> <span>jpg</span></label>
+                                            <label class="checkbox-card"><input type="checkbox" name="src_ext" value="jpeg" /> <span>jpeg</span></label>
+                                            <label class="checkbox-card"><input type="checkbox" name="src_ext" value="png" /> <span>png</span></label>
+                                            <label class="checkbox-card"><input type="checkbox" name="src_ext" value="webp" /> <span>webp</span></label>
+                                            <label class="checkbox-card"><input type="checkbox" name="src_ext" value="gif" /> <span>gif</span></label>
+                                            <label class="checkbox-card"><input type="checkbox" name="src_ext" value="bmp" /> <span>bmp</span></label>
+                                            <label class="checkbox-card"><input type="checkbox" name="src_ext" value="tiff" /> <span>tiff</span></label>
+                                            <label class="checkbox-card"><input type="checkbox" name="src_ext" value="tif" /> <span>tif</span></label>
+                                            <label class="checkbox-card"><input type="checkbox" name="src_ext" value="heic" /> <span>heic</span></label>
+                                            <label class="checkbox-card"><input type="checkbox" name="src_ext" value="heif" /> <span>heif</span></label>
+                                            <label class="checkbox-card"><input type="checkbox" name="src_ext" value="avif" /> <span>avif</span></label>
+                                        </div>
+                                        <input type="text" id="scheme_sources_custom" class="input-text" data-i18n-placeholder="scheme_sources_custom_placeholder" placeholder="自訂其他副檔名，逗號分隔，例如 raw" style="margin-top: 4px;" />
+                                        <div class="warning-banner" style="margin-top: 4px;">
+                                            <span data-i18n="custom_ext_warning">⚠️ 提示：自訂副檔名不一定支援轉檔，僅限已知相容格式。</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="grid-2">
+                                        <div class="form-group">
+                                            <label for="scheme_target" data-i18n="target_format_label">目標副檔名</label>
+                                            <select id="scheme_target"></select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="scheme_target_custom" data-i18n="target_format_custom_placeholder">自訂目標格式</label>
+                                            <input type="text" id="scheme_target_custom" class="input-text" data-i18n-placeholder="target_format_custom_placeholder" placeholder="輸入副檔名，例如 JPG 或 jpeg" />
+                                        </div>
+                                    </div>
+
+                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 4px;">
+                                        <label class="checkbox-row">
+                                            <input type="checkbox" id="scheme_delete_original" />
+                                            <span data-i18n="delete_original_label">轉檔後刪除原檔</span>
+                                        </label>
+                                        <div style="display:flex; gap:8px;">
+                                            <button type="button" id="scheme_cancel" class="btn secondary" data-i18n="cancel" style="display:none;">取消</button>
+                                            <button type="button" id="scheme_add" class="btn secondary" data-i18n="add_item">新增</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 3) Extension Aliases Section -->
+                            <div class="settings-module">
+                                <div class="settings-module-header">
+                                    <h4 data-i18n="module_alias_title">3) 副檔名規範</h4>
+                                    <label class="checkbox-row">
+                                        <input type="checkbox" id="enable_extension_aliases" class="config-input" />
+                                        <span data-i18n="enable_module">啟用此功能</span>
+                                    </label>
+                                </div>
+                                <p class="card-subtitle" style="margin: 0;" data-i18n="module_alias_desc">設定同一格式可能出現的多種副檔名，系統會用來判斷與正規化。</p>
+
+                                <div id="alias_rows" style="display:flex; flex-direction:column; gap:8px;"></div>
+
+                                <div class="grid-2">
+                                    <input type="text" id="alias_canonical" class="input-text" data-i18n-placeholder="alias_canonical_placeholder" placeholder="標準副檔名，例如 jpg" />
+                                    <div style="display:flex; gap:8px;">
+                                        <input type="text" id="alias_values" class="input-text" data-i18n-placeholder="alias_values_placeholder" placeholder="別名，逗號分隔，例如 jpeg,JPG,JPEG" style="flex:1;" />
+                                        <button type="button" id="alias_cancel" class="btn secondary" data-i18n="cancel" style="display:none;">取消</button>
+                                        <button type="button" id="alias_add" class="btn secondary" data-i18n="add_item">新增</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 4) Log Settings Section -->
+                            <div class="settings-module">
+                                <div class="settings-module-header">
+                                    <h4 data-i18n="module_log_title">4) 日誌備份與輪轉設定</h4>
+                                </div>
+                                <p class="card-subtitle" style="margin: 0;" data-i18n="module_log_desc">設定日誌檔案的保留上限，若超過限制將會自動輪轉備份。</p>
+                                
+                                <div class="grid-2">
+                                    <div class="form-group">
+                                        <label for="log_max_lines" data-i18n="log_max_lines_label">最大行數 (0表示不限制)</label>
+                                        <input type="number" id="log_max_lines" class="input-text config-input" min="0" placeholder="例如：10000" />
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="log_max_size_kb" data-i18n="log_max_size_kb_label">最大大小 (KB, 0表示不限制)</label>
+                                        <input type="number" id="log_max_size_kb" class="input-text config-input" min="0" placeholder="例如：1024" />
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="log_max_hours" data-i18n="log_max_hours_label">最大時間 (小時, 0表示不限制)</label>
+                                        <input type="number" id="log_max_hours" class="input-text config-input" min="0" step="0.5" placeholder="例如：24" />
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="log_backup_count" data-i18n="log_backup_count_label">保留備份檔個數</label>
+                                        <input type="number" id="log_backup_count" class="input-text config-input" min="0" placeholder="例如：5" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 5) Update Settings Section -->
+                            <div class="settings-module">
+                                <div class="settings-module-header">
+                                    <h4 data-i18n="module_update_title">5) 更新與排程設定</h4>
+                                </div>
+                                <p class="card-subtitle" style="margin: 0;" data-i18n="module_update_desc">設定自動檢查更新的排程與偏好。</p>
+
+                                <div class="grid-2">
+                                    <label class="checkbox-row">
+                                        <input type="checkbox" id="update_check_on_startup" class="config-input" />
+                                        <span data-i18n="update_check_on_startup_label">啟用啟動時檢查更新</span>
+                                    </label>
+                                    <label class="checkbox-row">
+                                        <input type="checkbox" id="update_include_prerelease" class="config-input" />
+                                        <span data-i18n="update_include_prerelease_label">接收測試版/預發布版更新 (Beta/RC)</span>
+                                    </label>
+                                </div>
+
+                                <div class="grid-2" style="margin-top:8px;">
+                                    <div class="form-group">
+                                        <label for="update_check_frequency" data-i18n="update_check_frequency_label">檢查頻率</label>
+                                        <select id="update_check_frequency" class="config-input">
+                                            <option value="none" data-i18n="freq_none">無 (不自動檢查)</option>
+                                            <option value="hourly" data-i18n="freq_hourly">每隔幾小時</option>
+                                            <option value="daily" data-i18n="freq_daily">每隔幾天</option>
+                                            <option value="weekly" data-i18n="freq_weekly">每隔幾週</option>
+                                            <option value="specific_time" data-i18n="freq_specific_time">每日特定時間</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" id="update_interval_field">
+                                        <label for="update_check_interval" data-i18n="update_check_interval_label">檢查間隔數值</label>
+                                        <input type="number" id="update_check_interval" class="input-text config-input" min="1" />
+                                    </div>
+                                    <div class="form-group" id="update_time_field" style="display:none;">
+                                        <label for="update_check_time" data-i18n="update_check_time_label">每日檢查時間 (HH:MM)</label>
+                                        <input type="text" id="update_check_time" class="input-text config-input" placeholder="例如：02:00" />
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Toast alert box container -->
+            <div class="toast-box" id="toastContainer"></div>
+
+            <!-- Sticky Save Changes Bar -->
+            <div class="sticky-action-bar" id="floatingSaveBar">
+                <div class="sticky-info">
+                    <span class="sticky-info-dot"></span>
+                    <span data-i18n="unsaved_changes_alert">您有尚未儲存的設定變更。</span>
+                </div>
+                <div class="sticky-buttons">
+                    <button type="button" class="btn secondary" id="discardConfigBtn" data-i18n="discard_btn" style="padding: 10px 18px;">放棄變更</button>
+                    <button type="button" class="btn" id="saveConfigBtn" data-i18n="save_config" style="padding: 10px 22px;">儲存設定</button>
+                </div>
+            </div>
+
+            <!-- Javascript Dashboard Application Logic -->
             <script>
-                // i18next initialization
+                // i18next state & translator mapping
                 function mapLangKey(lng) {
                     if (!lng) return lng;
-                    // map zh variants to our file name zh-TW.json
                     if (String(lng).toLowerCase().startsWith('zh')) return 'zh-TW';
-                    // otherwise use primary language tag (e.g., 'en')
                     return String(lng).split(/[-_]/)[0];
                 }
+
+                // Global configs states
+                let originalConfig = {};
+                let currentConfig = {};
+                let isConfigLoaded = false;
+                let editingWatchPathIndex = null;
+                let editingSchemeIndex = null;
+                let editingAliasCanonical = null;
 
                 i18next.use(i18nextHttpBackend).use(i18nextBrowserLanguageDetector).init({
                     fallbackLng: 'zh-TW',
@@ -567,7 +1474,6 @@ async def index():
                     backend: { loadPath: '/static/locales/{{lng}}.json' }
                 }, function(err, t) {
                     if (err) console.error('i18next init error', err);
-                    // if detected language uses a different tag (e.g. zh-TW) ensure we load the mapped file
                     try {
                         const detected = i18next.language;
                         const mapped = mapLangKey(detected);
@@ -580,7 +1486,6 @@ async def index():
                 });
 
                 function translatePage() {
-                    // set document title
                     try { document.title = i18next.t('title'); } catch(e){}
                     document.querySelectorAll('[data-i18n]').forEach(el => {
                         const key = el.getAttribute('data-i18n');
@@ -591,43 +1496,28 @@ async def index():
                         try { el.setAttribute('placeholder', i18next.t(key)); } catch(e){}
                     });
 
-                    // Re-render dynamic modules so their buttons/labels use the latest translations.
-                    try {
-                        // If the render functions exist, use current DOM state to re-render.
-                        if (typeof getWatchPaths === 'function' && typeof renderWatchPaths === 'function') {
-                            renderWatchPaths(getWatchPaths());
-                        }
-                        if (typeof getSchemes === 'function' && typeof renderSchemes === 'function') {
-                            renderSchemes(getSchemes());
-                        }
-                        if (typeof getAliases === 'function' && typeof renderAliases === 'function') {
-                            const aliasObj = getAliases();
-                            const aliasList = Object.entries(aliasObj).map(([canonical, aliases]) => ({ canonical, aliases }));
-                            renderAliases(aliasList);
-                        }
-                        // For generic list containers created by renderList, re-run on their current values
-                        if (typeof renderList === 'function') {
-                            // re-render known containers if present
-                            ['alias_rows','watch_paths_rows','schemes_rows'].forEach(cid => {
-                                const el = document.getElementById(cid);
-                                if (!el) return;
-                                // try to preserve existing dataset-driven values by calling corresponding renderer above
-                            });
-                        }
-                    } catch(e) { console.error('translatePage re-render error', e); }
+                    // Re-render lists to reflect dynamic keys (e.g. deletion buttons, recursive text)
+                    if (isConfigLoaded) {
+                        renderWatchPaths();
+                        renderSchemes();
+                        renderAliases();
+                        renderTargetSelectOptions();
+                    }
                 }
 
                 document.getElementById('langSel').addEventListener('change', (ev) => {
                     const sel = ev.target.value;
                     const mapped = mapLangKey(sel);
-                    i18next.changeLanguage(mapped).then(() => { localStorage.setItem('phos_lang', mapped); translatePage(); }).catch(()=>{});
+                    i18next.changeLanguage(mapped).then(() => { 
+                        localStorage.setItem('phos_lang', mapped); 
+                        translatePage(); 
+                    });
                 });
 
-                // Persist selection from localStorage if present
-                const saved = localStorage.getItem('phos_lang');
-                if (saved) {
-                    // saved may be mapped (zh-TW) or simple ('en') - set selector to a reasonable display value
-                   i18next.changeLanguage(saved).then(translatePage).catch(()=>{});
+                const savedLang = localStorage.getItem('phos_lang');
+                if (savedLang) {
+                    i18next.changeLanguage(savedLang).then(translatePage).catch(()=>{});
+                    document.getElementById('langSel').value = savedLang;
                 }
 
                 function t(key) {
@@ -643,760 +1533,689 @@ async def index():
                         'status_abnormal': '異常',
                         'status_offline': '下線',
                         'watcher_status_label': '監聽器狀態：',
-                        'worker_status_label': '處理器狀態：'
+                        'worker_status_label': '處理器狀態：',
+                        'unsaved_changes_alert': '您有尚未儲存的設定變更。',
+                        'discard_btn': '放棄變更'
                     };
                     return fallbacks[key] || key;
                 }
 
-                function normalizeTextList(value) {
-                    if (Array.isArray(value)) return value.map(item => String(item).trim()).filter(Boolean);
-                    if (typeof value === 'string') return value.split(',').map(item => item.trim()).filter(Boolean);
-                    return [];
+                // Toast alerts helper
+                function showToast(message, isError = false) {
+                    const container = document.getElementById('toastContainer');
+                    const toast = document.createElement('div');
+                    toast.className = 'toast-item' + (isError ? ' error' : ' success');
+                    
+                    const icon = document.createElement('span');
+                    icon.textContent = isError ? '❌' : '✨';
+                    
+                    const text = document.createElement('span');
+                    text.textContent = message;
+                    
+                    toast.appendChild(icon);
+                    toast.appendChild(text);
+                    container.appendChild(toast);
+                    
+                    setTimeout(() => {
+                        toast.style.opacity = '0';
+                        toast.style.transform = 'translateY(-10px) scale(0.95)';
+                        setTimeout(() => toast.remove(), 200);
+                    }, 3000);
                 }
 
-                function normalizeSuffix(value) {
-                    return String(value || '').trim().replace(/^\\./, '');
+                // Deep Comparison for detecting configurations modifications
+                function checkConfigChanges() {
+                    const changesDetected = JSON.stringify(originalConfig) !== JSON.stringify(currentConfig);
+                    const bar = document.getElementById('floatingSaveBar');
+                    if (changesDetected) {
+                        bar.classList.add('active');
+                    } else {
+                        bar.classList.remove('active');
+                    }
                 }
 
-                function getListValues(containerId) {
-                    const container = document.getElementById(containerId);
-                    if (!container) return [];
-                    return Array.from(container.querySelectorAll('.chip')).map(chip => chip.dataset.value || '').filter(Boolean);
+                // Dark/Light Theme Switching logic
+                const themeBtn = document.getElementById('themeToggle');
+                const sunIcon = document.getElementById('sunIcon');
+                const moonIcon = document.getElementById('moonIcon');
+
+                function applyTheme(isDark) {
+                    if (isDark) {
+                        document.body.classList.add('dark-mode');
+                        sunIcon.style.display = 'block';
+                        moonIcon.style.display = 'none';
+                        localStorage.setItem('theme', 'dark');
+                    } else {
+                        document.body.classList.remove('dark-mode');
+                        sunIcon.style.display = 'none';
+                        moonIcon.style.display = 'block';
+                        localStorage.setItem('theme', 'light');
+                    }
                 }
 
-                function renderList(containerId, values, formatter) {
-                    const container = document.getElementById(containerId);
-                    if (!container) return;
-                    const normalized = [];
-                    const seen = new Set();
-                    normalizeTextList(values).forEach(value => {
-                        const formatted = formatter ? formatter(value) : value;
-                        if (!formatted || seen.has(formatted)) return;
-                        seen.add(formatted);
-                        normalized.push(formatted);
+                const savedTheme = localStorage.getItem('theme');
+                const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                applyTheme(savedTheme === 'dark' || (!savedTheme && systemDark));
+
+                themeBtn.addEventListener('click', () => {
+                    applyTheme(!document.body.classList.contains('dark-mode'));
+                });
+
+                // Dual-binding configuration controls
+                function syncFormInputsToState() {
+                    document.querySelectorAll('.config-input').forEach(el => {
+                        const prop = el.id;
+                        if (!(prop in currentConfig)) return;
+
+                        if (el.tagName === 'SELECT') {
+                            el.value = currentConfig[prop];
+                        } else if (el.type === 'checkbox') {
+                            el.checked = !!currentConfig[prop];
+                        } else if (el.type === 'number') {
+                            el.value = currentConfig[prop] || 0;
+                        } else {
+                            el.value = currentConfig[prop] || '';
+                        }
                     });
+                    updateUpdateFieldsUI();
+                }
 
+                document.querySelectorAll('.config-input').forEach(el => {
+                    el.addEventListener('input', (ev) => {
+                        const prop = ev.target.id;
+                        let val = ev.target.value;
+                        
+                        if (ev.target.type === 'checkbox') {
+                            val = ev.target.checked;
+                        } else if (ev.target.type === 'number') {
+                            val = val === '' ? 0 : (ev.target.step ? parseFloat(val) : parseInt(val));
+                        }
+                        
+                        currentConfig[prop] = val;
+                        checkConfigChanges();
+                        
+                        if (prop === 'update_check_frequency') {
+                            updateUpdateFieldsUI();
+                        }
+                    });
+                });
+
+                function updateUpdateFieldsUI() {
+                    const freq = document.getElementById('update_check_frequency').value;
+                    const intervalField = document.getElementById('update_interval_field');
+                    const timeField = document.getElementById('update_time_field');
+                    
+                    if (freq === 'none') {
+                        intervalField.style.display = 'none';
+                        timeField.style.display = 'none';
+                    } else if (freq === 'specific_time') {
+                        intervalField.style.display = 'none';
+                        timeField.style.display = 'flex';
+                    } else {
+                        intervalField.style.display = 'flex';
+                        timeField.style.display = 'none';
+                    }
+                }
+
+                // Render Dynamic Options for Target Extensions
+                function renderTargetSelectOptions() {
+                    const select = document.getElementById('scheme_target');
+                    if (!select) return;
+                    
+                    const values = [];
+                    const seen = new Set();
+                    const push = (v) => {
+                        const clean = String(v || '').trim().replace(/^\./, '');
+                        if (clean && !seen.has(clean)) {
+                            seen.add(clean);
+                            values.push(clean);
+                        }
+                    };
+
+                    ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'tif', 'tiff', 'JPG', 'JPEG', 'PNG', 'WEBP', 'GIF', 'BMP', 'AVIF', 'TIF', 'TIFF'].forEach(push);
+                    
+                    if (currentConfig.extension_aliases) {
+                        Object.entries(currentConfig.extension_aliases).forEach(([canonical, aliasList]) => {
+                            push(canonical);
+                            if (Array.isArray(aliasList)) aliasList.forEach(push);
+                        });
+                    }
+                    
+                    const origSelected = select.value;
+                    select.innerHTML = '';
+                    
+                    values.forEach(v => {
+                        const opt = document.createElement('option');
+                        opt.value = v;
+                        opt.textContent = '.' + v;
+                        select.appendChild(opt);
+                    });
+                    
+                    if (values.includes(origSelected)) {
+                        select.value = origSelected;
+                    }
+                }
+
+                // 1) Watch Paths Render & Actions
+                function startEditWatchPath(index) {
+                    editingWatchPathIndex = index;
+                    const item = currentConfig.watch_paths[index];
+                    document.getElementById('watch_path_input').value = item.path;
+                    document.getElementById('watch_path_recursive').checked = item.recursive;
+                    
+                    const addBtn = document.getElementById('watch_path_add');
+                    addBtn.textContent = t('save');
+                    addBtn.removeAttribute('data-i18n');
+                    
+                    document.getElementById('watch_path_cancel').style.display = 'inline-flex';
+                }
+
+                function resetWatchPathEditState() {
+                    editingWatchPathIndex = null;
+                    document.getElementById('watch_path_input').value = '';
+                    document.getElementById('watch_path_recursive').checked = false;
+                    
+                    const addBtn = document.getElementById('watch_path_add');
+                    addBtn.textContent = t('add_item');
+                    addBtn.setAttribute('data-i18n', 'add_item');
+                    
+                    document.getElementById('watch_path_cancel').style.display = 'none';
+                }
+
+                function renderWatchPaths() {
+                    const container = document.getElementById('watch_paths_rows');
                     container.innerHTML = '';
-                    if (!normalized.length) {
+                    
+                    const paths = currentConfig.watch_paths || [];
+                    if (paths.length === 0) {
                         const empty = document.createElement('span');
-                        empty.className = 'list-empty';
+                        empty.className = 'list-empty-chip';
+                        empty.setAttribute('data-i18n', 'list_empty');
                         empty.textContent = t('list_empty');
                         container.appendChild(empty);
                         return;
                     }
-
-                    normalized.forEach(value => {
+                    
+                    paths.forEach((item, index) => {
                         const chip = document.createElement('span');
                         chip.className = 'chip';
-                        chip.dataset.value = value;
-                        const label = document.createElement('span');
-                        label.textContent = value;
-                        const removeBtn = document.createElement('button');
-                        removeBtn.type = 'button';
-                        removeBtn.setAttribute('aria-label', t('remove_item'));
-                        removeBtn.textContent = '×';
-                        removeBtn.onclick = () => {
-                            const remaining = getListValues(containerId).filter(item => item !== value);
-                            renderList(containerId, remaining, formatter);
+                        
+                        const text = document.createElement('span');
+                        text.textContent = item.path;
+                        
+                        const desc = document.createElement('span');
+                        desc.className = 'chip-desc';
+                        desc.textContent = item.recursive ? t('recursive_yes') : t('recursive_no');
+                        
+                        const editBtn = document.createElement('button');
+                        editBtn.type = 'button';
+                        editBtn.textContent = '✏️';
+                        editBtn.setAttribute('aria-label', t('edit'));
+                        editBtn.style.background = 'transparent';
+                        editBtn.style.border = '0';
+                        editBtn.style.color = 'inherit';
+                        editBtn.style.cursor = 'pointer';
+                        editBtn.style.fontSize = '12px';
+                        editBtn.style.display = 'flex';
+                        editBtn.style.alignItems = 'center';
+                        editBtn.style.justifyContent = 'center';
+                        editBtn.style.width = '14px';
+                        editBtn.style.height = '14px';
+                        editBtn.style.borderRadius = '50%';
+                        editBtn.onclick = () => {
+                            startEditWatchPath(index);
                         };
-                        chip.appendChild(label);
-                        chip.appendChild(removeBtn);
+                        
+                        const delBtn = document.createElement('button');
+                        delBtn.type = 'button';
+                        delBtn.textContent = '×';
+                        delBtn.setAttribute('aria-label', t('remove_item'));
+                        delBtn.onclick = () => {
+                            if (editingWatchPathIndex === index) {
+                                resetWatchPathEditState();
+                            } else if (editingWatchPathIndex > index) {
+                                editingWatchPathIndex--;
+                            }
+                            currentConfig.watch_paths.splice(index, 1);
+                            renderWatchPaths();
+                            checkConfigChanges();
+                        };
+                        
+                        chip.appendChild(text);
+                        chip.appendChild(desc);
+                        chip.appendChild(editBtn);
+                        chip.appendChild(delBtn);
                         container.appendChild(chip);
                     });
                 }
 
-                function addListItem(containerId, inputId, formatter, clearInput = true) {
-                    const input = document.getElementById(inputId);
-                    if (!input) return;
-                    const value = formatter ? formatter(input.value) : String(input.value || '').trim();
-                    if (!value) return;
-                    const current = getListValues(containerId);
-                    if (!current.includes(value)) {
-                        renderList(containerId, current.concat([value]), formatter);
+                document.getElementById('watch_path_add').addEventListener('click', () => {
+                    const input = document.getElementById('watch_path_input');
+                    const recursive = document.getElementById('watch_path_recursive');
+                    const path = input.value.trim();
+                    if (!path) return;
+
+                    if (/[<>|?*]/.test(path)) {
+                        showToast(t('invalid_path_error'), true);
+                        return;
                     }
-                    if (clearInput) input.value = '';
-                    input.focus();
-                }
 
-                function collectSuffixOptions(cfg) {
-                    const values = [];
-                    const seen = new Set();
-                    const push = (value) => {
-                        const normalized = normalizeSuffix(value);
-                        if (!normalized || seen.has(normalized)) return;
-                        seen.add(normalized);
-                        values.push(normalized);
-                    };
-
-                    ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'tif', 'tiff', 'JPG', 'JPEG', 'PNG', 'WEBP', 'GIF', 'BMP', 'AVIF', 'TIF', 'TIFF'].forEach(push);
-                    const aliases = (cfg && cfg.extension_aliases) ? cfg.extension_aliases : {};
-                    Object.entries(aliases).forEach(([canonical, aliasList]) => {
-                        push(canonical);
-                        if (Array.isArray(aliasList)) {
-                            aliasList.forEach(push);
-                        }
-                    });
-                    push(cfg && cfg.target_format);
-                    return values;
-                }
-
-                function collectSourceOptions(cfg) {
-                    const values = [];
-                    const seen = new Set();
-                    const push = (value) => {
-                        const normalized = normalizeSuffix(value).toLowerCase();
-                        if (!normalized || seen.has(normalized)) return;
-                        seen.add(normalized);
-                        values.push(normalized);
-                    };
-
-                    ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'tif', 'tiff'].forEach(push);
-                    const aliases = (cfg && cfg.extension_aliases) ? cfg.extension_aliases : {};
-                    Object.entries(aliases).forEach(([canonical, aliasList]) => {
-                        push(canonical);
-                        if (Array.isArray(aliasList)) {
-                            aliasList.forEach(push);
-                        }
-                    });
-                    push(cfg && cfg.target_format);
-                    return values;
-                }
-
-                function renderSelect(selectId, values, selected) {
-                    const select = document.getElementById(selectId);
-                    if (!select) return;
-                    select.innerHTML = '';
-                    values.forEach(value => {
-                        const option = document.createElement('option');
-                        option.value = value;
-                        option.textContent = value;
-                        select.appendChild(option);
-                    });
-                    const normalizedSelected = normalizeSuffix(selected);
-                    if (normalizedSelected && !values.includes(normalizedSelected)) {
-                        const option = document.createElement('option');
-                        option.value = normalizedSelected;
-                        option.textContent = normalizedSelected;
-                        select.appendChild(option);
-                    }
-                    select.value = normalizedSelected || values[0] || '';
-                }
-
-                function appendSuffixOption(selectId, value) {
-                    const select = document.getElementById(selectId);
-                    if (!select) return;
-                    const normalized = normalizeSuffix(value);
-                    if (!normalized) return;
-                    const exists = Array.from(select.options).some(option => option.value === normalized);
-                    if (!exists) {
-                        const option = document.createElement('option');
-                        option.value = normalized;
-                        option.textContent = normalized;
-                        select.appendChild(option);
-                    }
-                    select.value = normalized;
-                }
-
-                function pretty(obj) {
-                    try { return JSON.stringify(obj, null, 2); } catch (e) { return String(obj); }
-                }
-
-                async function updateQ() {
-                    try {
-                        const res = await fetch('/status');
-                        const j = await res.json();
-                        document.getElementById('qlen').innerText = j.queue_length;
-                    } catch (e) { console.error(e); }
-                }
-
-                async function loadControl() {
-                    try {
-                        const res = await fetch('/control');
-                        const j = await res.json();
-                        document.getElementById('pausedState').innerText = j.paused ? t('paused') : t('running');
-                    } catch (e) { console.error(e); }
-                }
-
-                async function refreshQueue() {
-                    try {
-                        const res = await fetch('/queue');
-                        const j = await res.json();
-                        document.getElementById('qlen').innerText = j.count;
-                        const container = document.getElementById('queueItems');
-                        container.innerHTML = '';
-                        if (!j.items || j.items.length===0) {
-                            container.textContent = t('queue_empty');
-                            return;
-                        }
-                        j.items.forEach(item => {
-                            const el = document.createElement('div');
-                            el.style.padding = '6px 0';
-                            el.style.borderBottom = '1px solid #eef2ff';
-                            const path = document.createElement('div');
-                            path.textContent = item.path || item['path'] || JSON.stringify(item);
-                            path.style.fontFamily = 'monospace';
-                            const meta = document.createElement('div');
-                            meta.className = 'muted';
-                            meta.textContent = t('id_label') + (item.id || item['id'] || '') ;
-                            const btnRow = document.createElement('div');
-                            btnRow.className = 'row';
-                            const retryBtn = document.createElement('button');
-                            retryBtn.textContent = t('requeue');
-                            retryBtn.onclick = () => { requeueItem(item.id || item['id'], retryBtn); };
-                            const removeBtn = document.createElement('button');
-                            removeBtn.textContent = t('remove');
-                            removeBtn.className = 'secondary';
-                            removeBtn.onclick = () => { removeItem(item.id || item['id'], removeBtn); };
-                            btnRow.appendChild(retryBtn);
-                            btnRow.appendChild(removeBtn);
-                            el.appendChild(path);
-                            el.appendChild(meta);
-                            el.appendChild(btnRow);
-                            container.appendChild(el);
+                    if (!currentConfig.watch_paths) currentConfig.watch_paths = [];
+                    
+                    if (editingWatchPathIndex !== null) {
+                        currentConfig.watch_paths[editingWatchPathIndex] = {
+                            path: path,
+                            recursive: recursive.checked
+                        };
+                        resetWatchPathEditState();
+                    } else {
+                        currentConfig.watch_paths.push({
+                            path: path,
+                            recursive: recursive.checked
                         });
-                    } catch (e) { console.error(e); }
-                }
+                        input.value = '';
+                        recursive.checked = false;
+                    }
 
-                async function removeItem(id, btn) {
-                    const orig = btn.textContent;
-                    try {
-                        btn.disabled = true;
-                        btn.innerHTML = '<span class="spinner"></span>' + orig;
-                        const res = await fetch('/queue/remove', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id})});
-                        const j = await res.json();
-                        if (!j.ok) {
-                            showToast(t('remove_failed'), true);
+                    renderWatchPaths();
+                    checkConfigChanges();
+                });
+
+                document.getElementById('watch_path_cancel').addEventListener('click', () => {
+                    resetWatchPathEditState();
+                });
+
+                // Checkbox Active State Visual Handler
+                document.querySelectorAll('#scheme_sources_checkboxes input').forEach(cb => {
+                    cb.addEventListener('change', (ev) => {
+                        const label = ev.target.closest('.checkbox-card');
+                        if (ev.target.checked) {
+                            label.classList.add('active');
                         } else {
-                            showToast(t('removed'), false);
+                            label.classList.remove('active');
                         }
-                        await refreshQueue();
-                    } catch(e){ console.error(e); showToast(t('remove_error'), true); }
-                    finally { try { btn.disabled = false; btn.textContent = orig; } catch(_){} }
-                }
+                    });
+                });
 
-                async function requeueItem(id, btn) {
-                    const orig = btn.textContent;
-                    try {
-                        btn.disabled = true;
-                        btn.innerHTML = '<span class="spinner"></span>' + orig;
-                        const res = await fetch('/queue/requeue', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id})});
-                        const j = await res.json();
-                        if (!j.ok) {
-                            showToast(t('requeue_failed'), true);
+                // 2) Conversion Schemes Render & Actions
+                function startEditScheme(index) {
+                    editingSchemeIndex = index;
+                    const sc = currentConfig.conversion_schemes[index];
+                    document.getElementById('scheme_name').value = sc.name || '';
+                    document.getElementById('scheme_delete_original').checked = !!sc.delete_original;
+                    
+                    const defaultExts = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tiff', 'tif', 'heic', 'heif', 'avif'];
+                    document.querySelectorAll('#scheme_sources_checkboxes input').forEach(cb => {
+                        const val = cb.value;
+                        const isChecked = sc.source_extensions.includes(val);
+                        cb.checked = isChecked;
+                        const label = cb.closest('.checkbox-card');
+                        if (isChecked) {
+                            label.classList.add('active');
                         } else {
-                            showToast(t('requeued'), false);
+                            label.classList.remove('active');
                         }
-                        await refreshQueue();
-                    } catch(e){ console.error(e); showToast(t('requeue_error'), true); }
-                    finally { try { btn.disabled = false; btn.textContent = orig; } catch(_){} }
+                    });
+                    
+                    const customExts = sc.source_extensions.filter(ext => !defaultExts.includes(ext));
+                    document.getElementById('scheme_sources_custom').value = customExts.join(', ');
+                    
+                    const select = document.getElementById('scheme_target');
+                    const options = Array.from(select.options).map(opt => opt.value);
+                    if (options.includes(sc.target_format)) {
+                        select.value = sc.target_format;
+                        document.getElementById('scheme_target_custom').value = '';
+                    } else {
+                        select.value = '';
+                        document.getElementById('scheme_target_custom').value = sc.target_format;
+                    }
+                    
+                    const addBtn = document.getElementById('scheme_add');
+                    addBtn.textContent = t('save');
+                    addBtn.removeAttribute('data-i18n');
+                    
+                    document.getElementById('scheme_cancel').style.display = 'inline-flex';
                 }
 
-                function showToast(msg, isError) {
-                    const tdiv = document.createElement('div');
-                    tdiv.textContent = msg;
-                    tdiv.style.background = isError ? '#ef4444' : '#10b981';
-                    tdiv.style.color = 'white';
-                    tdiv.style.padding = '8px 12px';
-                    tdiv.style.marginTop = '8px';
-                    tdiv.style.borderRadius = '8px';
-                    document.getElementById('toast').appendChild(tdiv);
-                    setTimeout(() => { tdiv.style.transition = 'opacity 0.4s'; tdiv.style.opacity = '0'; setTimeout(()=>tdiv.remove(),400); }, 3000);
+                function resetSchemeEditState() {
+                    editingSchemeIndex = null;
+                    document.getElementById('scheme_name').value = '';
+                    document.getElementById('scheme_sources_custom').value = '';
+                    document.getElementById('scheme_target_custom').value = '';
+                    document.getElementById('scheme_delete_original').checked = false;
+                    document.querySelectorAll('input[name="src_ext"]').forEach(cb => {
+                        cb.checked = false;
+                        cb.closest('.checkbox-card').classList.remove('active');
+                    });
+                    
+                    const addBtn = document.getElementById('scheme_add');
+                    addBtn.textContent = t('add_item');
+                    addBtn.setAttribute('data-i18n', 'add_item');
+                    
+                    document.getElementById('scheme_cancel').style.display = 'none';
                 }
 
-                async function togglePause() {
-                    try {
-                        const paused = document.getElementById('pausedState').innerText !== t('paused');
-                        const res = await fetch('/control', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({paused: paused})
+                function renderSchemes() {
+                    const container = document.getElementById('schemes_rows');
+                    container.innerHTML = '';
+                    
+                    const schemes = currentConfig.conversion_schemes || [];
+                    schemes.forEach((sc, index) => {
+                        const row = document.createElement('div');
+                        row.className = 'status-item';
+                        row.style.flexWrap = 'wrap';
+                        row.style.gap = '8px';
+                        
+                        const left = document.createElement('div');
+                        left.style.display = 'flex';
+                        left.style.flexDirection = 'column';
+                        left.style.gap = '2px';
+                        
+                        const title = document.createElement('strong');
+                        title.textContent = sc.name || ('scheme-' + (index + 1));
+                        title.style.fontSize = '13px';
+                        
+                        const details = document.createElement('span');
+                        details.className = 'queue-status';
+                        details.textContent = `${sc.source_extensions.map(x => '.' + x).join(', ')} ➔ .${sc.target_format} (${sc.delete_original ? t('delete_original_yes') : t('delete_original_no')})`;
+                        
+                        left.appendChild(title);
+                        left.appendChild(details);
+                        
+                        const right = document.createElement('div');
+                        right.style.display = 'flex';
+                        right.style.alignItems = 'center';
+                        right.style.gap = '10px';
+
+                        const enabledLabel = document.createElement('label');
+                        enabledLabel.className = 'checkbox-row';
+                        enabledLabel.style.fontSize = '12px';
+                        
+                        const enabledCb = document.createElement('input');
+                        enabledCb.type = 'checkbox';
+                        enabledCb.checked = !!sc.enabled;
+                        enabledCb.onchange = (ev) => {
+                            sc.enabled = ev.target.checked;
+                            checkConfigChanges();
+                        };
+                        enabledLabel.appendChild(enabledCb);
+                        enabledLabel.appendChild(document.createTextNode(t('enable_module')));
+                        
+                        const editBtn = document.createElement('button');
+                        editBtn.type = 'button';
+                        editBtn.className = 'btn secondary sm';
+                        editBtn.textContent = t('edit');
+                        editBtn.onclick = () => {
+                            startEditScheme(index);
+                        };
+                        
+                        const delBtn = document.createElement('button');
+                        delBtn.type = 'button';
+                        delBtn.className = 'btn danger sm';
+                        delBtn.textContent = t('remove');
+                        delBtn.onclick = () => {
+                            if (editingSchemeIndex === index) {
+                                resetSchemeEditState();
+                            } else if (editingSchemeIndex > index) {
+                                editingSchemeIndex--;
+                            }
+                            currentConfig.conversion_schemes.splice(index, 1);
+                            renderSchemes();
+                            renderTargetSelectOptions();
+                            checkConfigChanges();
+                        };
+                        
+                        right.appendChild(enabledLabel);
+                        right.appendChild(editBtn);
+                        right.appendChild(delBtn);
+                        
+                        row.appendChild(left);
+                        row.appendChild(right);
+                        container.appendChild(row);
+                    });
+                }
+
+                document.getElementById('scheme_add').addEventListener('click', () => {
+                    const name = document.getElementById('scheme_name').value.trim();
+                    const customSources = document.getElementById('scheme_sources_custom').value.trim();
+                    const targetSelect = document.getElementById('scheme_target').value;
+                    const targetCustom = document.getElementById('scheme_target_custom').value.trim();
+                    const deleteOrig = document.getElementById('scheme_delete_original').checked;
+
+                    // Collect selected source checkboxes
+                    const checkedSources = Array.from(document.querySelectorAll('input[name="src_ext"]:checked')).map(cb => cb.value);
+                    if (customSources) {
+                        customSources.split(',').forEach(x => {
+                            const clean = x.trim().toLowerCase().replace(/^\./, '');
+                            if (clean && !checkedSources.includes(clean)) checkedSources.push(clean);
                         });
-                        const j = await res.json();
-                        document.getElementById('pausedState').innerText = j.paused ? t('paused') : t('running');
-                    } catch (e) { console.error(e); }
+                    }
+
+                    const target = (targetCustom || targetSelect || '').trim().replace(/^\./, '');
+                    
+                    if (!target || checkedSources.length === 0) {
+                        showToast("Please provide source extensions and target format", true);
+                        return;
+                    }
+
+                    if (!currentConfig.conversion_schemes) currentConfig.conversion_schemes = [];
+                    
+                    if (editingSchemeIndex !== null) {
+                        const currentEnabled = !!currentConfig.conversion_schemes[editingSchemeIndex].enabled;
+                        currentConfig.conversion_schemes[editingSchemeIndex] = {
+                            name: name || ('scheme-' + (editingSchemeIndex + 1)),
+                            source_extensions: checkedSources,
+                            target_format: target,
+                            delete_original: deleteOrig,
+                            enabled: currentEnabled
+                        };
+                        resetSchemeEditState();
+                    } else {
+                        currentConfig.conversion_schemes.push({
+                            name: name || ('scheme-' + (currentConfig.conversion_schemes.length + 1)),
+                            source_extensions: checkedSources,
+                            target_format: target,
+                            delete_original: deleteOrig,
+                            enabled: true
+                        });
+                        
+                        // Clear fields
+                        document.getElementById('scheme_name').value = '';
+                        document.getElementById('scheme_sources_custom').value = '';
+                        document.getElementById('scheme_target_custom').value = '';
+                        document.getElementById('scheme_delete_original').checked = false;
+                        document.querySelectorAll('input[name="src_ext"]:checked').forEach(cb => {
+                            cb.checked = false;
+                            cb.closest('.checkbox-card').classList.remove('active');
+                        });
+                    }
+
+                    renderSchemes();
+                    renderTargetSelectOptions();
+                    checkConfigChanges();
+                });
+
+                document.getElementById('scheme_cancel').addEventListener('click', () => {
+                    resetSchemeEditState();
+                });
+
+                // 3) Extension Aliases Render & Actions
+                function startEditAlias(canonical) {
+                    editingAliasCanonical = canonical;
+                    document.getElementById('alias_canonical').value = canonical;
+                    document.getElementById('alias_values').value = (currentConfig.extension_aliases[canonical] || []).join(', ');
+                    
+                    const addBtn = document.getElementById('alias_add');
+                    addBtn.textContent = t('save');
+                    addBtn.removeAttribute('data-i18n');
+                    
+                    document.getElementById('alias_cancel').style.display = 'inline-flex';
                 }
 
+                function resetAliasEditState() {
+                    editingAliasCanonical = null;
+                    document.getElementById('alias_canonical').value = '';
+                    document.getElementById('alias_values').value = '';
+                    
+                    const addBtn = document.getElementById('alias_add');
+                    addBtn.textContent = t('add_item');
+                    addBtn.setAttribute('data-i18n', 'add_item');
+                    
+                    document.getElementById('alias_cancel').style.display = 'none';
+                }
+
+                function renderAliases() {
+                    const container = document.getElementById('alias_rows');
+                    container.innerHTML = '';
+                    
+                    const aliases = currentConfig.extension_aliases || {};
+                    Object.entries(aliases).forEach(([canonical, aliasList]) => {
+                        if (!aliasList || aliasList.length === 0) return;
+                        
+                        const row = document.createElement('div');
+                        row.className = 'status-item';
+                        
+                        const left = document.createElement('div');
+                        left.style.display = 'flex';
+                        left.style.flexDirection = 'column';
+                        left.style.gap = '2px';
+                        
+                        const title = document.createElement('strong');
+                        title.textContent = '.' + canonical;
+                        title.style.fontSize = '13px';
+                        
+                        const details = document.createElement('span');
+                        details.className = 'queue-status';
+                        details.textContent = aliasList.map(x => '.' + x).join(', ');
+                        
+                        left.appendChild(title);
+                        left.appendChild(details);
+                        
+                        const actions = document.createElement('div');
+                        actions.style.display = 'flex';
+                        actions.style.gap = '6px';
+                        
+                        const editBtn = document.createElement('button');
+                        editBtn.type = 'button';
+                        editBtn.className = 'btn secondary sm';
+                        editBtn.textContent = t('edit');
+                        editBtn.onclick = () => {
+                            startEditAlias(canonical);
+                        };
+                        
+                        const delBtn = document.createElement('button');
+                        delBtn.type = 'button';
+                        delBtn.className = 'btn danger sm';
+                        delBtn.textContent = t('remove');
+                        delBtn.onclick = () => {
+                            if (editingAliasCanonical === canonical) {
+                                resetAliasEditState();
+                            }
+                            delete currentConfig.extension_aliases[canonical];
+                            renderAliases();
+                            renderTargetSelectOptions();
+                            checkConfigChanges();
+                        };
+                        
+                        actions.appendChild(editBtn);
+                        actions.appendChild(delBtn);
+                        
+                        row.appendChild(left);
+                        row.appendChild(actions);
+                        container.appendChild(row);
+                    });
+                }
+
+                document.getElementById('alias_add').addEventListener('click', () => {
+                    const canonical = document.getElementById('alias_canonical').value.trim().toLowerCase().replace(/^\./, '');
+                    const valuesStr = document.getElementById('alias_values').value.trim();
+                    if (!canonical || !valuesStr) return;
+
+                    const list = valuesStr.split(',').map(x => x.trim().replace(/^\./, '')).filter(Boolean);
+                    if (list.length === 0) return;
+
+                    if (!currentConfig.extension_aliases) currentConfig.extension_aliases = {};
+                    
+                    if (editingAliasCanonical !== null) {
+                        delete currentConfig.extension_aliases[editingAliasCanonical];
+                    }
+                    currentConfig.extension_aliases[canonical] = list;
+                    resetAliasEditState();
+
+                    renderAliases();
+                    renderTargetSelectOptions();
+                    checkConfigChanges();
+                });
+
+                document.getElementById('alias_cancel').addEventListener('click', () => {
+                    resetAliasEditState();
+                });
+
+                // Load configuration from API
                 async function loadConfig() {
                     try {
                         const res = await fetch('/config');
-                        const j = await res.json();
-
-                        const normalizeWatchPaths = (cfg) => {
-                            const raw = cfg.watch_paths || [];
-                            if (!Array.isArray(raw)) return [];
-                            if (raw.length && typeof raw[0] === 'string') {
-                                const globalRecursive = !!cfg.recursive;
-                                return raw.map(path => ({ path: String(path || '').trim(), recursive: globalRecursive })).filter(item => item.path);
-                            }
-                            return raw.map(item => ({
-                                path: String((item && (item.path || item.watch_path)) || '').trim(),
-                                recursive: !!(item && item.recursive)
-                            })).filter(item => item.path);
-                        };
-
-                        const normalizeSchemes = (cfg) => {
-                            if (Array.isArray(cfg.conversion_schemes) && cfg.conversion_schemes.length) {
-                                return cfg.conversion_schemes.map((sc, idx) => ({
-                                    name: String((sc && (sc.name || sc.id)) || ('scheme-' + (idx + 1))).trim(),
-                                    source_extensions: normalizeTextList(sc && sc.source_extensions).map(x => normalizeSuffix(x).toLowerCase()),
-                                    target_format: normalizeSuffix(sc && sc.target_format),
-                                    delete_original: !!(sc && sc.delete_original),
-                                    enabled: sc && sc.enabled !== false
-                                })).filter(sc => sc.target_format || sc.source_extensions.length);
-                            }
-                            return [{
-                                name: 'default',
-                                source_extensions: normalizeTextList(cfg.source_extensions).map(x => normalizeSuffix(x).toLowerCase()),
-                                target_format: normalizeSuffix(cfg.target_format),
-                                delete_original: !!cfg.delete_original,
-                                enabled: true
-                            }].filter(sc => sc.target_format || sc.source_extensions.length);
-                        };
-
-                        const normalizeAliases = (cfg) => {
-                            const aliases = (cfg && cfg.extension_aliases && typeof cfg.extension_aliases === 'object') ? cfg.extension_aliases : {};
-                            return Object.entries(aliases).map(([canonical, aliasList]) => ({
-                                canonical: normalizeSuffix(canonical),
-                                aliases: normalizeTextList(aliasList).map(x => normalizeSuffix(x))
-                            })).filter(item => item.canonical);
-                        };
-
-                        renderSelect('scheme_target', collectSuffixOptions(j), j.target_format || 'jpg');
-                        renderWatchPaths(normalizeWatchPaths(j));
-                        renderSchemes(normalizeSchemes(j));
-                        renderAliases(normalizeAliases(j));
-
-                        // Load log settings
-                        const lLines = document.getElementById('log_max_lines');
-                        if (lLines) lLines.value = j.log_max_lines !== undefined ? j.log_max_lines : 0;
-                        const lSize = document.getElementById('log_max_size_kb');
-                        if (lSize) lSize.value = j.log_max_size_kb !== undefined ? j.log_max_size_kb : 0;
-                        const lHours = document.getElementById('log_max_hours');
-                        if (lHours) lHours.value = j.log_max_hours !== undefined ? j.log_max_hours : 0;
-                        const lBackup = document.getElementById('log_backup_count');
-                        if (lBackup) lBackup.value = j.log_backup_count !== undefined ? j.log_backup_count : 5;
-
-                        // Load module enable toggles
-                        const enSchemes = document.getElementById('enable_conversion_schemes');
-                        if (enSchemes) enSchemes.checked = j.enable_conversion_schemes !== false;
-                        const enAliases = document.getElementById('enable_extension_aliases');
-                        if (enAliases) enAliases.checked = j.enable_extension_aliases !== false;
-
-                        // Load updater settings
-                        const upStartup = document.getElementById('update_check_on_startup');
-                        if (upStartup) upStartup.checked = j.update_check_on_startup !== false;
-                        const upPre = document.getElementById('update_include_prerelease');
-                        if (upPre) upPre.checked = !!j.update_include_prerelease;
-                        const upFreq = document.getElementById('update_check_frequency');
-                        if (upFreq) upFreq.value = j.update_check_frequency || 'daily';
-                        const upInterval = document.getElementById('update_check_interval');
-                        if (upInterval) upInterval.value = j.update_check_interval !== undefined ? j.update_check_interval : 1;
-                        const upTime = document.getElementById('update_check_time');
-                        if (upTime) upTime.value = j.update_check_time || '02:00';
-                        if (typeof updateUpdateFieldsUI === 'function') {
-                            updateUpdateFieldsUI();
-                        }
-
-                        if (typeof updateModuleStatusUI === 'function') {
-                            updateModuleStatusUI();
-                        }
-                    } catch (e) { console.error(e); }
-                }
-
-                function getWatchPaths() {
-                    return Array.from(document.querySelectorAll('#watch_paths_rows .watch-row')).map(row => ({
-                        path: String(row.dataset.path || '').trim(),
-                        recursive: row.dataset.recursive === 'true'
-                    })).filter(item => item.path);
-                }
-
-                function renderWatchPaths(items) {
-                    const container = document.getElementById('watch_paths_rows');
-                    if (!container) return;
-                    container.innerHTML = '';
-                    if (!items || !items.length) {
-                        const empty = document.createElement('span');
-                        empty.className = 'list-empty';
-                        empty.textContent = t('list_empty');
-                        container.appendChild(empty);
-                        return;
+                        const cfg = await res.json();
+                        
+                        originalConfig = JSON.parse(JSON.stringify(cfg));
+                        currentConfig = JSON.parse(JSON.stringify(cfg));
+                        
+                        isConfigLoaded = true;
+                        
+                        syncFormInputsToState();
+                        renderWatchPaths();
+                        renderSchemes();
+                        renderAliases();
+                        renderTargetSelectOptions();
+                        
+                        checkConfigChanges();
+                    } catch(e) {
+                        console.error('Failed to load configuration:', e);
+                        showToast('Failed to load configuration', true);
                     }
-
-                    items.forEach(item => {
-                        const row = document.createElement('div');
-                        row.className = 'item-row watch-row';
-                        row.dataset.path = item.path;
-                        row.dataset.recursive = item.recursive ? 'true' : 'false';
-
-                        const main = document.createElement('div');
-                        main.className = 'item-main mono';
-                        main.textContent = item.path;
-
-                        const recursiveBadge = document.createElement('span');
-                        recursiveBadge.className = 'badge';
-                        recursiveBadge.textContent = item.recursive ? t('recursive_yes') : t('recursive_no');
-
-                        const toggleBtn = document.createElement('button');
-                        toggleBtn.type = 'button';
-                        toggleBtn.className = 'secondary';
-                        toggleBtn.textContent = t('toggle_recursive');
-                        toggleBtn.onclick = () => {
-                            const next = !item.recursive;
-                            const nextItems = getWatchPaths().map(x => x.path === item.path ? { path: x.path, recursive: next } : x);
-                            renderWatchPaths(nextItems);
-                        };
-
-                        const removeBtn = document.createElement('button');
-                        removeBtn.type = 'button';
-                        removeBtn.textContent = t('remove_item');
-                        removeBtn.onclick = () => {
-                            const nextItems = getWatchPaths().filter(x => x.path !== item.path);
-                            renderWatchPaths(nextItems);
-                        };
-
-                        row.appendChild(main);
-                        row.appendChild(recursiveBadge);
-                        row.appendChild(toggleBtn);
-                        row.appendChild(removeBtn);
-                        container.appendChild(row);
-                    });
                 }
 
-                function getSchemes() {
-                    return Array.from(document.querySelectorAll('#schemes_rows .scheme-row')).map(row => ({
-                        name: String(row.dataset.name || '').trim(),
-                        source_extensions: normalizeTextList(row.dataset.sources || '').map(x => normalizeSuffix(x).toLowerCase()),
-                        target_format: normalizeSuffix(row.dataset.target || ''),
-                        delete_original: row.dataset.deleteOriginal === 'true',
-                        enabled: row.dataset.enabled !== 'false'
-                    })).filter(item => item.target_format || item.source_extensions.length);
-                }
+                // Discard changes
+                document.getElementById('discardConfigBtn').addEventListener('click', () => {
+                    currentConfig = JSON.parse(JSON.stringify(originalConfig));
+                    resetWatchPathEditState();
+                    resetSchemeEditState();
+                    resetAliasEditState();
+                    syncFormInputsToState();
+                    renderWatchPaths();
+                    renderSchemes();
+                    renderAliases();
+                    renderTargetSelectOptions();
+                    checkConfigChanges();
+                    showToast('變更已放棄');
+                });
 
-                function renderSchemes(items) {
-                    const container = document.getElementById('schemes_rows');
-                    if (!container) return;
-                    container.innerHTML = '';
-                    if (!items || !items.length) {
-                        const empty = document.createElement('span');
-                        empty.className = 'list-empty';
-                        empty.textContent = t('list_empty');
-                        container.appendChild(empty);
-                        return;
-                    }
-
-                    items.forEach((item, idx) => {
-                        const row = document.createElement('div');
-                        row.className = 'item-row scheme-row';
-                        row.dataset.name = item.name || ('scheme-' + (idx + 1));
-                        row.dataset.sources = (item.source_extensions || []).join(',');
-                        row.dataset.target = item.target_format || '';
-                        row.dataset.deleteOriginal = item.delete_original ? 'true' : 'false';
-                        row.dataset.enabled = item.enabled === false ? 'false' : 'true';
-
-                        const main = document.createElement('div');
-                        main.className = 'item-main';
-                        const name = document.createElement('div');
-                        name.innerHTML = '<strong>' + (row.dataset.name || ('scheme-' + (idx + 1))) + '</strong>';
-                        const details = document.createElement('div');
-                        details.className = 'mono muted';
-                        details.textContent = (item.source_extensions || []).join(', ') + ' -> ' + (item.target_format || '');
-                        main.appendChild(name);
-                        main.appendChild(details);
-
-                        const delBadge = document.createElement('span');
-                        delBadge.className = 'badge';
-                        delBadge.textContent = item.delete_original ? t('delete_original_yes') : t('delete_original_no');
-
-                        const toggleDelBtn = document.createElement('button');
-                        toggleDelBtn.type = 'button';
-                        toggleDelBtn.className = 'secondary';
-                        toggleDelBtn.textContent = t('toggle_delete_original');
-                        toggleDelBtn.onclick = () => {
-                            const all = getSchemes();
-                            all[idx].delete_original = !all[idx].delete_original;
-                            renderSchemes(all);
-                        };
-
-                        const removeBtn = document.createElement('button');
-                        removeBtn.type = 'button';
-                        removeBtn.textContent = t('remove_item');
-                        removeBtn.onclick = () => {
-                            const all = getSchemes();
-                            all.splice(idx, 1);
-                            renderSchemes(all);
-                        };
-
-                        row.appendChild(main);
-                        row.appendChild(delBadge);
-                        row.appendChild(toggleDelBtn);
-                        row.appendChild(removeBtn);
-                        container.appendChild(row);
-                    });
-                }
-
-                function getAliases() {
-                    const out = {};
-                    Array.from(document.querySelectorAll('#alias_rows .alias-row')).forEach(row => {
-                        const canonical = normalizeSuffix(row.dataset.canonical || '');
-                        if (!canonical) return;
-                        out[canonical] = normalizeTextList(row.dataset.aliases || '').map(x => normalizeSuffix(x));
-                    });
-                    return out;
-                }
-
-                function renderAliases(items) {
-                    const container = document.getElementById('alias_rows');
-                    if (!container) return;
-                    container.innerHTML = '';
-                    if (!items || !items.length) {
-                        const empty = document.createElement('span');
-                        empty.className = 'list-empty';
-                        empty.textContent = t('list_empty');
-                        container.appendChild(empty);
-                        return;
-                    }
-
-                    items.forEach((item, idx) => {
-                        const row = document.createElement('div');
-                        row.className = 'item-row alias-row';
-                        row.dataset.canonical = item.canonical;
-                        row.dataset.aliases = (item.aliases || []).join(',');
-
-                        const main = document.createElement('div');
-                        main.className = 'item-main';
-                        const title = document.createElement('div');
-                        title.innerHTML = '<strong class="mono">' + item.canonical + '</strong>';
-                        const details = document.createElement('div');
-                        details.className = 'mono muted';
-                        details.textContent = (item.aliases || []).join(', ');
-                        main.appendChild(title);
-                        main.appendChild(details);
-
-                        const removeBtn = document.createElement('button');
-                        removeBtn.type = 'button';
-                        removeBtn.textContent = t('remove_item');
-                        removeBtn.onclick = () => {
-                            const all = Object.entries(getAliases()).map(([canonical, aliases]) => ({ canonical, aliases }));
-                            all.splice(idx, 1);
-                            renderAliases(all);
-                        };
-
-                        row.appendChild(main);
-                        row.appendChild(removeBtn);
-                        container.appendChild(row);
-                    });
-                }
-
-                async function saveConfig() {
-                    const btn = document.getElementById('saveConfig');
-                    const origText = btn.textContent;
+                // Save configuration to API
+                document.getElementById('saveConfigBtn').addEventListener('click', async () => {
+                    const btn = document.getElementById('saveConfigBtn');
+                    btn.disabled = true;
                     try {
-                        btn.disabled = true;
-                        btn.innerHTML = '<span class="spinner"></span>' + origText;
-                        const cfg = {};
-
-                        cfg.watch_paths = getWatchPaths();
-                        cfg.conversion_schemes = getSchemes();
-                        cfg.extension_aliases = getAliases();
-                        cfg.enable_conversion_schemes = document.getElementById('enable_conversion_schemes').checked;
-                        cfg.enable_extension_aliases = document.getElementById('enable_extension_aliases').checked;
-
-                        // Save log settings
-                        cfg.log_max_lines = parseInt(document.getElementById('log_max_lines')?.value || '0', 10);
-                        cfg.log_max_size_kb = parseFloat(document.getElementById('log_max_size_kb')?.value || '0');
-                        cfg.log_max_hours = parseFloat(document.getElementById('log_max_hours')?.value || '0');
-                        cfg.log_backup_count = parseInt(document.getElementById('log_backup_count')?.value || '5', 10);
-
-                        // Save updater settings
-                        cfg.update_check_on_startup = !!document.getElementById('update_check_on_startup')?.checked;
-                        cfg.update_include_prerelease = !!document.getElementById('update_include_prerelease')?.checked;
-                        cfg.update_check_frequency = document.getElementById('update_check_frequency')?.value || 'daily';
-                        cfg.update_check_interval = parseInt(document.getElementById('update_check_interval')?.value || '1', 10);
-                        cfg.update_check_time = document.getElementById('update_check_time')?.value || '02:00';
-
-                        // Backward-compatible fields for current worker logic
-                        const active = cfg.conversion_schemes.find(sc => sc.enabled !== false) || cfg.conversion_schemes[0] || null;
-                        cfg.source_extensions = active ? (active.source_extensions || []) : [];
-                        cfg.target_format = active ? normalizeSuffix(active.target_format || '') : '';
-                        cfg.delete_original = !!(active && active.delete_original);
-                        cfg.recursive = cfg.watch_paths.some(x => x.recursive);
-
-                        if (!cfg.watch_paths.length) {
-                            showToast(t('watch_paths_required'), true);
-                            return;
-                        }
-                        if (cfg.enable_conversion_schemes && !cfg.conversion_schemes.length) {
-                            showToast(t('conversion_scheme_required'), true);
-                            return;
-                        }
-
                         const res = await fetch('/config', {
                             method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify(cfg)
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(currentConfig)
                         });
-                        const j = await res.json();
-                        if (!j.ok) {
-                            showToast(t('save_failed') + ': ' + (j.error || 'unknown error'), true);
-                            return;
+                        const data = await res.json();
+                        if (data.ok) {
+                            originalConfig = JSON.parse(JSON.stringify(currentConfig));
+                            checkConfigChanges();
+                            showToast(t('saved'));
+                        } else {
+                            showToast(t('save_failed') + ': ' + data.error, true);
                         }
-                        showToast(t('saved'), false);
-                    } catch (e) { console.error(e); showToast(t('save_error'), true); }
-                    finally { btn.disabled = false; try { btn.textContent = origText; } catch(_){} }
-                }
-
-                function bindConfigEditors() {
-                    const watchInput = document.getElementById('watch_path_input');
-                    const watchRecursive = document.getElementById('watch_path_recursive');
-                    const watchBtn = document.getElementById('watch_path_add');
-                    const schemeBtn = document.getElementById('scheme_add');
-                    const aliasBtn = document.getElementById('alias_add');
-
-                    if (watchBtn) watchBtn.addEventListener('click', () => {
-                        let path = String(watchInput && watchInput.value || '').trim();
-                        // Auto-correct: strip leading/trailing quotes
-                        path = path.replace(/^["']|["']$/g, '').trim();
-                        if (!path) return;
-
-                        // Validate path characters
-                        const illegalChars = /[<>|?*"]/;
-                        if (illegalChars.test(path)) {
-                            showToast(t('invalid_path_error'), true);
-                            return;
-                        }
-
-                        const next = getWatchPaths();
-                        if (!next.some(x => x.path === path)) {
-                            next.push({ path, recursive: !!(watchRecursive && watchRecursive.checked) });
-                            renderWatchPaths(next);
-                        }
-                        if (watchInput) watchInput.value = '';
-                    });
-
-                    if (watchInput) {
-                        watchInput.addEventListener('keydown', (ev) => {
-                            if (ev.key === 'Enter') {
-                                ev.preventDefault();
-                                watchBtn && watchBtn.click();
-                            }
-                        });
+                    } catch(e) {
+                        showToast(t('save_error'), true);
+                    } finally {
+                        btn.disabled = false;
                     }
+                });
 
-                    if (schemeBtn) schemeBtn.addEventListener('click', () => {
-                        const nameEl = document.getElementById('scheme_name');
-                        const srcCustomEl = document.getElementById('scheme_sources_custom');
-                        const tgtEl = document.getElementById('scheme_target');
-                        const tgtCustomEl = document.getElementById('scheme_target_custom');
-                        const delEl = document.getElementById('scheme_delete_original');
-
-                        const name = String(nameEl && nameEl.value || '').trim() || ('scheme-' + (getSchemes().length + 1));
-                        
-                        // Collect checked checkboxes
-                        const checkedExts = Array.from(document.querySelectorAll('input[name="src_ext"]:checked')).map(chk => chk.value);
-                        // Collect custom list
-                        const customExts = normalizeTextList(srcCustomEl && srcCustomEl.value || '').map(x => normalizeSuffix(x).toLowerCase());
-                        const source_extensions = Array.from(new Set([...checkedExts, ...customExts]));
-
-                        if (!source_extensions.length) {
-                            showToast(t('source_extensions_label') + ' ' + t('list_empty'), true);
-                            return;
-                        }
-
-                        const target_format = normalizeSuffix((tgtCustomEl && tgtCustomEl.value) || (tgtEl && tgtEl.value) || '');
-                        if (!target_format) return;
-
-                        const next = getSchemes();
-                        next.push({
-                            name,
-                            source_extensions,
-                            target_format,
-                            delete_original: !!(delEl && delEl.checked),
-                            enabled: true
-                        });
-                        renderSchemes(next);
-                        if (nameEl) nameEl.value = '';
-                        if (srcCustomEl) srcCustomEl.value = '';
-                        // Uncheck checkboxes
-                        document.querySelectorAll('input[name="src_ext"]').forEach(chk => chk.checked = false);
-                        if (tgtCustomEl) tgtCustomEl.value = '';
-                    });
-
-                    if (aliasBtn) aliasBtn.addEventListener('click', () => {
-                        const canonicalEl = document.getElementById('alias_canonical');
-                        const valuesEl = document.getElementById('alias_values');
-                        const canonical = normalizeSuffix(canonicalEl && canonicalEl.value || '');
-                        if (!canonical) return;
-                        const aliases = normalizeTextList(valuesEl && valuesEl.value || '').map(x => normalizeSuffix(x));
-
-                        const map = getAliases();
-                        map[canonical] = aliases;
-                        const next = Object.entries(map).map(([k, v]) => ({ canonical: k, aliases: v }));
-                        renderAliases(next);
-
-                        if (canonicalEl) canonicalEl.value = '';
-                        if (valuesEl) valuesEl.value = '';
-                    });
-                }
-
-                document.getElementById('refreshQueue').addEventListener('click', refreshQueue);
-                document.getElementById('togglePause').addEventListener('click', togglePause);
-                document.getElementById('loadConfig').addEventListener('click', loadConfig);
-                document.getElementById('saveConfig').addEventListener('click', saveConfig);
-                bindConfigEditors();
-
-                function updateModuleStatusUI() {
-                    const enSchemes = document.getElementById('enable_conversion_schemes');
-                    const enAliases = document.getElementById('enable_extension_aliases');
-                    const enableSchemes = enSchemes ? enSchemes.checked : true;
-                    const enableAliases = enAliases ? enAliases.checked : true;
-
-                    const schemeInputs = [
-                        'scheme_name', 'scheme_sources_custom', 'scheme_target', 'scheme_target_custom', 'scheme_delete_original', 'scheme_add'
-                    ];
-                    schemeInputs.forEach(id => {
-                        const el = document.getElementById(id);
-                        if (el) el.disabled = !enableSchemes;
-                    });
-                    document.querySelectorAll('input[name="src_ext"]').forEach(chk => {
-                        chk.disabled = !enableSchemes;
-                    });
-
-                    const aliasInputs = [
-                        'alias_canonical', 'alias_values', 'alias_add'
-                    ];
-                    aliasInputs.forEach(id => {
-                        const el = document.getElementById(id);
-                        if (el) el.disabled = !enableAliases;
-                    });
-                }
-
-                const toggleSchemesEl = document.getElementById('enable_conversion_schemes');
-                if (toggleSchemesEl) toggleSchemesEl.addEventListener('change', updateModuleStatusUI);
-                const toggleAliasesEl = document.getElementById('enable_extension_aliases');
-                if (toggleAliasesEl) toggleAliasesEl.addEventListener('change', updateModuleStatusUI);
-
-                function updateComponentStatus(elementId, statusInfo) {
-                    const el = document.getElementById(elementId);
-                    if (!el) return;
-                    if (!statusInfo) {
-                        el.className = 'status-badge status-offline';
-                        el.innerText = t('status_offline');
-                        el.title = '';
-                        return;
-                    }
-                    const status = statusInfo.status || 'offline';
-                    const error = statusInfo.error || '';
-                    
-                    el.className = 'status-badge status-' + status;
-                    el.innerText = t('status_' + status);
-                    if (error) {
-                        el.title = error;
-                    } else {
-                        el.title = '';
-                    }
-                }
-
-                // Serialized polling loops to avoid overlapping fetches
+                // Status & control polling
                 async function pollStatus() {
                     while (true) {
                         try {
@@ -1411,6 +2230,112 @@ async def index():
                     }
                 }
 
+                function updateComponentStatus(id, state) {
+                    const badge = document.getElementById(id);
+                    const dotText = badge.querySelector('.label-text');
+                    badge.className = 'badge-dot';
+                    
+                    const statusStr = (state && typeof state === 'object') ? state.status : state;
+                    
+                    if (statusStr === 'running' || statusStr === 'idle' || statusStr === 'normal' || statusStr === 'active') {
+                        badge.classList.add('status-normal');
+                        dotText.innerText = t('status_normal');
+                    } else if (statusStr === 'abnormal' || statusStr === 'error') {
+                        badge.classList.add('status-abnormal');
+                        dotText.innerText = t('status_abnormal');
+                    } else {
+                        badge.classList.add('status-offline');
+                        dotText.innerText = t('status_offline');
+                    }
+                }
+
+                async function refreshQueue() {
+                    try {
+                        const res = await fetch('/queue');
+                        const data = await res.json();
+                        const container = document.getElementById('queueItems');
+                        
+                        if (!data.items || data.items.length === 0) {
+                            container.innerHTML = `<div class="queue-empty" data-i18n="queue_empty">${t('queue_empty')}</div>`;
+                            return;
+                        }
+
+                        container.innerHTML = '';
+                        data.items.forEach(item => {
+                            const row = document.createElement('div');
+                            row.className = 'queue-item';
+
+                            const meta = document.createElement('div');
+                            meta.className = 'queue-meta';
+
+                            const filename = document.createElement('span');
+                            filename.className = 'queue-filename';
+                            filename.textContent = item.path;
+
+                            const status = document.createElement('span');
+                            status.className = 'queue-status';
+                            status.textContent = `${item.status} | retries: ${item.retries}`;
+
+                            meta.appendChild(filename);
+                            meta.appendChild(status);
+
+                            const actions = document.createElement('div');
+                            actions.style.display = 'flex';
+                            actions.style.gap = '6px';
+
+                            const requeueBtn = document.createElement('button');
+                            requeueBtn.type = 'button';
+                            requeueBtn.className = 'btn sm secondary';
+                            requeueBtn.textContent = t('requeue');
+                            requeueBtn.onclick = async () => {
+                                try {
+                                    const r = await fetch('/queue/requeue', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ id: item.id })
+                                    });
+                                    const resData = await r.json();
+                                    if (resData.ok) {
+                                        showToast(t('requeued'));
+                                        refreshQueue();
+                                    } else {
+                                        showToast(t('requeue_failed'), true);
+                                    }
+                                } catch(e) { showToast(t('requeue_error'), true); }
+                            };
+
+                            const removeBtn = document.createElement('button');
+                            removeBtn.type = 'button';
+                            removeBtn.className = 'btn sm danger';
+                            removeBtn.textContent = t('remove');
+                            removeBtn.onclick = async () => {
+                                try {
+                                    const r = await fetch('/queue/remove', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ id: item.id })
+                                    });
+                                    const resData = await r.json();
+                                    if (resData.ok) {
+                                        showToast(t('removed'));
+                                        refreshQueue();
+                                    } else {
+                                        showToast(t('remove_failed'), true);
+                                    }
+                                } catch(e) { showToast(t('remove_error'), true); }
+                            };
+
+                            actions.appendChild(requeueBtn);
+                            actions.appendChild(removeBtn);
+                            row.appendChild(meta);
+                            row.appendChild(actions);
+                            container.appendChild(row);
+                        });
+                    } catch(e) { console.error(e); }
+                }
+
+                document.getElementById('refreshQueue').addEventListener('click', refreshQueue);
+
                 async function pollQueue() {
                     while (true) {
                         try {
@@ -1420,32 +2345,20 @@ async def index():
                     }
                 }
 
-                // start polling and initial load
-                pollStatus();
-                pollQueue();
-                loadConfig();
+                document.getElementById('togglePause').addEventListener('click', async () => {
+                    try {
+                        const currPaused = document.getElementById('pausedState').innerText === t('paused');
+                        const res = await fetch('/control', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ paused: !currPaused })
+                        });
+                        const j = await res.json();
+                        document.getElementById('pausedState').innerText = j.paused ? t('paused') : t('running');
+                    } catch(e) { console.error(e); }
+                });
 
-                // Updater dynamic script integration
-                function updateUpdateFieldsUI() {
-                    const freqEl = document.getElementById('update_check_frequency');
-                    if (!freqEl) return;
-                    const freq = freqEl.value;
-                    const intervalField = document.getElementById('update_interval_field');
-                    const timeField = document.getElementById('update_time_field');
-                    
-                    if (freq === 'none') {
-                        intervalField.style.display = 'none';
-                        timeField.style.display = 'none';
-                    } else if (freq === 'specific_time') {
-                        intervalField.style.display = 'none';
-                        timeField.style.display = 'block';
-                    } else {
-                        intervalField.style.display = 'block';
-                        timeField.style.display = 'none';
-                    }
-                }
-                document.getElementById('update_check_frequency').addEventListener('change', updateUpdateFieldsUI);
-
+                // Updater functions
                 let updaterPolling = false;
                 let isUpdating = false;
                 let isManualCheck = false;
@@ -1456,13 +2369,12 @@ async def index():
                         const j = await res.json();
                         
                         document.getElementById('appVersion').innerText = j.current_version;
+                        document.getElementById('badgeAppVersion').innerText = 'v' + j.current_version;
                         
                         const updateBadge = document.getElementById('updateBadge');
                         if (j.update_available) {
                             updateBadge.style.display = 'inline-block';
-                            updateBadge.style.background = '#fef08a';
-                            updateBadge.style.color = '#854d0e';
-                            updateBadge.innerText = t('new_version_available') + ' (' + j.latest_version + ')';
+                            updateBadge.innerText = t('new_version_available') + ' (' + (j.latest_version || '') + ')';
                         } else {
                             updateBadge.style.display = 'none';
                         }
@@ -1481,8 +2393,8 @@ async def index():
                             
                             if (j.update_available) {
                                 updateCard.style.display = 'block';
-                                updateStatusMsg.innerText = t('update_prompt') + ' ' + j.latest_version;
-                                actions.style.display = 'block';
+                                updateStatusMsg.innerText = t('update_prompt') + ' ' + (j.latest_version || '');
+                                actions.style.display = 'flex';
                                 confirmBtn.style.display = 'inline-block';
                                 
                                 const notesSection = document.getElementById('updateNotesSection');
@@ -1496,7 +2408,7 @@ async def index():
                             } else {
                                 updateCard.style.display = 'none';
                                 if (isManualCheck) {
-                                    showToast(t('already_latest'), false);
+                                    showToast(t('already_latest'));
                                     isManualCheck = false;
                                 }
                             }
@@ -1507,10 +2419,9 @@ async def index():
                             updateCard.style.display = 'block';
                             updateStatusMsg.innerText = t('update_status_error') + ': ' + j.error_message;
                             progressContainer.style.display = 'none';
-                            actions.style.display = 'block';
+                            actions.style.display = 'flex';
                             confirmBtn.style.display = 'none';
                         } else {
-                            // status is 'checking', 'downloading', 'applying', 'done'
                             isUpdating = true;
                             checkBtn.disabled = true;
                             updateCard.style.display = 'block';
@@ -1540,9 +2451,7 @@ async def index():
                                 startUpdaterPolling();
                             }
                         }
-                    } catch(e) {
-                        console.error("Error checking updater status:", e);
-                    }
+                    } catch(e) { console.error(e); }
                 }
 
                 async function startUpdaterPolling() {
@@ -1593,12 +2502,58 @@ async def index():
                     isUpdating = false;
                 });
 
-                // Run check on page load
-                checkUpdaterStatusOnce();
+                // Terminal Logs Interactive controls
+                let autoScrollEnabled = true;
+                const autoScrollBtn = document.getElementById('terminalAutoScroll');
+                const copyBtn = document.getElementById('terminalCopy');
+                const clearBtn = document.getElementById('terminalClear');
+                const terminalLogs = document.getElementById('logs');
 
+                autoScrollBtn.addEventListener('click', () => {
+                    autoScrollEnabled = !autoScrollEnabled;
+                    autoScrollBtn.classList.toggle('active', autoScrollEnabled);
+                });
+
+                clearBtn.addEventListener('click', () => {
+                    terminalLogs.textContent = '';
+                });
+
+                copyBtn.addEventListener('click', () => {
+                    const text = terminalLogs.textContent;
+                    if (!text) return;
+                    
+                    navigator.clipboard.writeText(text).then(() => {
+                        showToast('Logs copied to clipboard');
+                    }).catch(() => {
+                        // Fallback copy method
+                        const textArea = document.createElement("textarea");
+                        textArea.value = text;
+                        document.body.appendChild(textArea);
+                        textArea.select();
+                        try {
+                            document.execCommand('copy');
+                            showToast('Logs copied to clipboard');
+                        } catch (err) {
+                            showToast('Failed to copy logs', true);
+                        }
+                        document.body.removeChild(textArea);
+                    });
+                });
+
+                // WebSocket Terminal logs stream connection
                 const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/logs');
-                const logs = document.getElementById('logs');
-                ws.onmessage = (ev) => { logs.textContent += ev.data + '\\n'; logs.scrollTop = logs.scrollHeight; };
+                ws.onmessage = (ev) => {
+                    terminalLogs.textContent += ev.data + '\n';
+                    if (autoScrollEnabled) {
+                        terminalLogs.scrollTop = terminalLogs.scrollHeight;
+                    }
+                };
+
+                // Initialization triggers
+                pollStatus();
+                pollQueue();
+                loadConfig();
+                checkUpdaterStatusOnce();
             </script>
         </body>
     </html>

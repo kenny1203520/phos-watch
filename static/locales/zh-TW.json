@@ -106,5 +106,12 @@
   "freq_specific_time": "每日特定時間",
   "update_check_interval_label": "檢查間隔數值",
   "update_check_time_label": "每日檢查時間 (HH:MM)",
-  "already_latest": "已是最新版本"
+  "already_latest": "已是最新版本",
+  "status_dashboard": "系統狀態",
+  "unsaved_changes_alert": "您有尚未儲存的設定變更。",
+  "discard_btn": "放棄變更",
+  "scheme_name_label": "方案名稱",
+  "edit": "編輯",
+  "cancel": "取消",
+  "save": "儲存"
 }
