@@ -12,7 +12,7 @@ from . import worker
 from . import updater
 
 app = FastAPI()
-logger = logging.getLogger('phos-watch-web')
+logger = logging.getLogger(__name__)
 LOGFILE = os.getenv('PHOS_LOG_FILE', os.path.join('logs', 'phos_watch.log'))
 
 # Check if log file exists, if not create it. Avoid truncating to preserve log history/rotation.

@@ -60,3 +60,27 @@ def test_check_update_include_prerelease(mock_urlopen):
     assert res["status"] == "idle"
     assert res["latest_version"] == "v9.9.9-beta.1"
     assert res["update_available"] is True
+
+
+@patch("phos_watch.updater.__version__", "0.1.0")
+@patch("urllib.request.urlopen")
+def test_check_update_404_stable(mock_urlopen):
+    import urllib.error
+    mock_urlopen.side_effect = urllib.error.HTTPError("http://api.github.com/...", 404, "Not Found", {}, None)
+    
+    res = check_update_sync(include_prerelease=False)
+    assert res["status"] == "idle"
+    assert res["latest_version"] is None
+    assert res["update_available"] is False
+    assert res["error_message"] is None
+
+
+@patch("phos_watch.updater.__version__", "0.1.0")
+@patch("urllib.request.urlopen")
+def test_check_update_404_prerelease(mock_urlopen):
+    import urllib.error
+    mock_urlopen.side_effect = urllib.error.HTTPError("http://api.github.com/...", 404, "Not Found", {}, None)
+    
+    res = check_update_sync(include_prerelease=True)
+    assert res["status"] == "error"
+    assert "HTTP 404" in res["error_message"]

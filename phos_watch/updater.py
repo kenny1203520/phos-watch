@@ -14,7 +14,7 @@ import zipfile
 from . import __version__
 from . import control
 
-logger = logging.getLogger('phos-watch-updater')
+logger = logging.getLogger(__name__)
 
 # Global updater state
 status_lock = threading.Lock()
@@ -135,14 +135,16 @@ def check_update_sync(include_prerelease=False):
                 status["error_message"] = None
         except urllib.error.HTTPError as he:
             if he.code == 404:
-                # No release published yet
-                logger.info("No releases found (HTTP 404). Setting update_available = False.")
-                with status_lock:
-                    status["latest_version"] = __version__
-                    status["release_notes"] = ""
-                    status["update_available"] = False
-                    status["status"] = "idle"
-                    status["error_message"] = None
+                if include_prerelease:
+                    raise Exception("GitHub repository not found or private (HTTP 404).")
+                else:
+                    logger.info("No stable releases found on GitHub (HTTP 404). Setting update_available = False.")
+                    with status_lock:
+                        status["latest_version"] = None
+                        status["release_notes"] = ""
+                        status["update_available"] = False
+                        status["status"] = "idle"
+                        status["error_message"] = None
             else:
                 raise he
                 
