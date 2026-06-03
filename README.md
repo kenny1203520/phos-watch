@@ -163,3 +163,18 @@ phos-watch 的目標是成為一個事件驅動、可容器化、可熱更新設
 ## English Summary
 
 phos-watch aims to be an event-driven, container-ready, hot-reloadable media automation engine. It watches folders for changes, pushes new images into a background queue, normalizes formats and extensions, and can remove originals after conversion to avoid duplicate files in file browsers.
+
+---
+
+## Redis is optional
+
+phos-watch supports a Redis-backed queue but Redis is optional. By default the project will attempt to use the address in the `REDIS_URL` environment variable. To explicitly disable Redis and use the local file fallback behavior, set the environment variable `PHOS_USE_REDIS=0` (or `false`). Alternatively, leave `REDIS_URL` empty.
+
+Example (PowerShell):
+
+```powershell
+$env:PHOS_USE_REDIS = '0'
+.venv\Scripts\python app.py --mode worker
+```
+
+When Redis is disabled or unreachable, phos-watch uses a simple append/read `queue.log` file in the working directory as a fallback queue.
