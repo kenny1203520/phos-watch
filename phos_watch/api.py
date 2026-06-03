@@ -1138,7 +1138,7 @@ async def index():
             <div class="topbar">
                 <div class="brand">
                     <h1 data-i18n="heading_admin">phos-watch 管理介面</h1>
-                    <span class="brand-badge" id="badgeAppVersion">v0.0.1</span>
+                    <span class="brand-badge" id="badgeAppVersion">unknown version</span>
                 </div>
                 <div class="controls-right">
                     <select id="langSel" class="lang-select" aria-label="language selector">
